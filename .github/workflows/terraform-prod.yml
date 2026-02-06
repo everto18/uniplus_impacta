@@ -1,0 +1,337 @@
+name: Terraform - Production
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+  workflow_dispatch:
+    inputs:
+      confirm_apply:
+        description: 'Type "apply" to confirm production deployment'
+        required: true
+        default: ''
+
+env:
+  TF_VERSION: '1.10.0'
+  AWS_REGION: 'sa-east-1'
+  ENVIRONMENT: 'prod'
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  # Security scan with stricter rules
+  security:
+    name: Security Scan (Strict)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform/environments/prod
+          framework: terraform
+          output_format: github_failed_only
+          soft_fail: false  # Strict mode for production
+          download_external_modules: true
+          skip_check: CKV_AWS_144,CKV_AWS_145  # Skip checks if needed
+
+      - name: Run TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: Init TFLint
+        run: tflint --init
+        working-directory: terraform/environments/prod
+
+      - name: Run TFLint
+        run: tflint --format=compact --force
+        working-directory: terraform/environments/prod
+
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'terraform/environments/prod'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+
+  # Cost estimation
+  cost:
+    name: Cost Estimation
+    runs-on: ubuntu-latest
+    needs: security
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Run Infracost
+        run: |
+          infracost breakdown --path=terraform/environments/prod \
+            --format=table \
+            --out-file=/tmp/infracost.txt
+
+      - name: Post Infracost comment
+        if: github.event_name == 'pull_request'
+        run: |
+          infracost comment github --path=/tmp/infracost.txt \
+            --repo=${{ github.repository }} \
+            --github-token=${{ github.token }} \
+            --pull-request=${{ github.event.pull_request.number }} \
+            --behavior=update
+        continue-on-error: true
+
+  # Terraform plan
+  plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    needs: [security, cost]
+    outputs:
+      plan_exit_code: ${{ steps.plan.outputs.exitcode }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Cache Terraform providers
+        uses: actions/cache@v4
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: terraform-prod-${{ runner.os }}-${{ hashFiles('terraform/**/*.tf') }}
+          restore-keys: |
+            terraform-prod-${{ runner.os }}-
+
+      - name: Configure Terraform plugin cache
+        run: |
+          mkdir -p ~/.terraform.d/plugin-cache
+          echo 'plugin_cache_dir = "$HOME/.terraform.d/plugin-cache"' > ~/.terraformrc
+
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive
+        working-directory: terraform
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+        working-directory: terraform/environments/prod
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+        working-directory: terraform/environments/prod
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -no-color -input=false -out=tfplan \
+            -var="container_image=${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}" \
+            -var="certificate_arn=${{ secrets.ACM_CERT_ARN }}" \
+            -var="cloudfront_certificate_arn=${{ secrets.ACM_CF_CERT_ARN }}" \
+            -var="domain_name=${{ secrets.DOMAIN_NAME }}"
+        working-directory: terraform/environments/prod
+
+      - name: Upload Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-prod
+          path: terraform/environments/prod/tfplan
+          retention-days: 5
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `## 🚨 Production Terraform Plan
+            
+            #### Terraform Format 🖌 \`${{ steps.fmt.outcome }}\`
+            #### Terraform Init ⚙️ \`${{ steps.init.outcome }}\`
+            #### Terraform Validate 🤖 \`${{ steps.validate.outcome }}\`
+            #### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`
+            
+            <details><summary>Show Plan</summary>
+            
+            \`\`\`terraform
+            ${{ steps.plan.outputs.stdout }}
+            \`\`\`
+            
+            </details>
+            
+            > ⚠️ **This is a PRODUCTION deployment. Please review carefully!**
+            
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+  # Manual approval and apply
+  apply:
+    name: Terraform Apply (Production)
+    runs-on: ubuntu-latest
+    needs: plan
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: 
+      name: production
+      url: https://app.uniplus.com
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: terraform/environments/prod
+
+      - name: Download Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-prod
+          path: terraform/environments/prod
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: terraform/environments/prod
+
+      - name: Notify on Success
+        if: success()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: |
+            ✅ *Production deployment successful!*
+            - Commit: ${{ github.sha }}
+            - Actor: ${{ github.actor }}
+            - Workflow: ${{ github.workflow }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+      - name: Notify on Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: |
+            ❌ *Production deployment FAILED!*
+            - Commit: ${{ github.sha }}
+            - Actor: ${{ github.actor }}
+            - Workflow: ${{ github.workflow }}
+            - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+  # Infrastructure Tests (TAAC - Tests as a Code)
+  infrastructure_tests:
+    name: Infrastructure Tests (Production)
+    runs-on: ubuntu-latest
+    needs: apply
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('tests/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      - name: Install test dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Run Infrastructure Tests
+        env:
+          ENVIRONMENT: prod
+          PROJECT_NAME: uniplus
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          pytest tests/ \
+            -v \
+            --tb=short \
+            -m "infrastructure and integration" \
+            --junitxml=test-results.xml \
+            --ignore=tests/conftest.py
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: infrastructure-test-results-prod
+          path: test-results.xml
+          retention-days: 30
+
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: 'test-results.xml'
+          fail_on_failure: true
+          require_tests: true
+
+      - name: Notify Test Results
+        if: always()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: |
+            🧪 *Infrastructure Tests Complete (Production)*
+            - Status: ${{ job.status }}
+            - Commit: ${{ github.sha }}
+            - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
