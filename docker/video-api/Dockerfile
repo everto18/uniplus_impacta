@@ -12,12 +12,11 @@ RUN apk add --no-cache \
     libzip-dev \
     oniguruma-dev
 
-# Install PHP extensions
+# Install PHP extensions (json is built-in since PHP 8.0)
 RUN docker-php-ext-install -j$(nproc) \
     mbstring \
     zip \
-    opcache \
-    json
+    opcache
 
 # Set working directory
 WORKDIR /var/www/html
