@@ -1,0 +1,614 @@
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - 'dev*'      # Branches that start with 'dev' (dev, develop, dev-feature, etc.)
+      - 'main'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+      skip_tests:
+        description: 'Skip tests'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  AWS_REGION: 'sa-east-1'
+  TF_VERSION: '1.10.0'
+  PYTHON_VERSION: '3.12'
+
+permissions:
+  id-token: write
+  contents: write
+  pull-requests: write
+  security-events: write
+
+jobs:
+  # ============================================
+  # STAGE 1: Unit Tests
+  # ============================================
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    strategy:
+      matrix:
+        service:
+          - portal-aluno
+          - portal-professor
+          - sistema-academico
+          - video-api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-unit-tests
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run Unit Tests - ${{ matrix.service }}
+        run: |
+          if [ -d "docker/${{ matrix.service }}/src/unit_tests" ]; then
+            pytest docker/${{ matrix.service }}/src/unit_tests/ -v --tb=short --junitxml=test-results-${{ matrix.service }}.xml
+          else
+            echo "No unit tests found for ${{ matrix.service }}"
+          fi
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results-${{ matrix.service }}
+          path: test-results-${{ matrix.service }}.xml
+          retention-days: 7
+
+  # ============================================
+  # STAGE 2: Docker Pre-Build (Test Build)
+  # ============================================
+  docker-prebuild:
+    name: Docker Pre-Build
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: always() && (needs.unit-tests.result == 'success' || needs.unit-tests.result == 'skipped')
+    strategy:
+      matrix:
+        service:
+          - portal-aluno
+          - portal-professor
+          - sistema-academico
+          - video-api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Check if Dockerfile exists
+        id: check-dockerfile
+        run: |
+          if [ -f "docker/${{ matrix.service }}/Dockerfile" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Docker Image (Test)
+        if: steps.check-dockerfile.outputs.exists == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/${{ matrix.service }}/Dockerfile
+          push: false
+          tags: uniplus-${{ matrix.service }}:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Image Build Summary
+        if: steps.check-dockerfile.outputs.exists == 'true'
+        run: |
+          echo "✅ Docker image for ${{ matrix.service }} built successfully!"
+          docker images | grep uniplus-${{ matrix.service }} || true
+
+  # ============================================
+  # STAGE 3: Security Scan
+  # ============================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: docker-prebuild
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/dockerfile
+          auditOn: push
+        continue-on-error: true
+
+      - name: Run Trivy Config Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'docker/'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '0'
+        continue-on-error: true
+
+  # ============================================
+  # STAGE 4: Deploy to Development (dev* branches)
+  # ============================================
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: [docker-prebuild, security-scan]
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/dev')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+    environment:
+      name: development
+    outputs:
+      deployed: ${{ steps.deploy.outputs.deployed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Environment Variables
+        id: env-vars
+        run: |
+          echo "ENVIRONMENT=dev" >> $GITHUB_ENV
+          echo "BRANCH_NAME=${GITHUB_REF#refs/heads/}" >> $GITHUB_ENV
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_DEV }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Images (Dev)
+        run: |
+          for service in portal-aluno portal-professor sistema-academico video-api; do
+            if [ -f "docker/$service/Dockerfile" ]; then
+              echo "Building and pushing $service..."
+              docker build -t ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:${{ github.sha }} \
+                           -t ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:dev \
+                           -f docker/$service/Dockerfile .
+              docker push ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:${{ github.sha }}
+              docker push ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:dev
+            fi
+          done
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: terraform/environments/dev
+
+      - name: Terraform Plan
+        run: |
+          terraform plan -no-color -input=false -out=tfplan \
+            -var="container_image=${{ steps.login-ecr.outputs.registry }}/uniplus-portal-aluno:${{ github.sha }}"
+        working-directory: terraform/environments/dev
+
+      - name: Terraform Apply
+        id: deploy
+        run: |
+          terraform apply -auto-approve tfplan
+          echo "deployed=true" >> $GITHUB_OUTPUT
+        working-directory: terraform/environments/dev
+
+      - name: Deploy Summary
+        run: |
+          echo "## 🚀 Development Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ env.BRANCH_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ env.SHORT_SHA }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** Development" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # STAGE 5: Integration Tests TAAC (dev* branches)
+  # ============================================
+  integration-tests-dev:
+    name: Integration Tests (TAAC)
+    runs-on: ubuntu-latest
+    needs: deploy-dev
+    if: |
+      github.event_name == 'push' && 
+      startsWith(github.ref, 'refs/heads/dev') &&
+      needs.deploy-dev.outputs.deployed == 'true'
+    outputs:
+      tests_passed: ${{ steps.tests.outputs.passed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_DEV }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-integration-tests
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Run TAAC Integration Tests
+        id: tests
+        env:
+          ENVIRONMENT: dev
+          PROJECT_NAME: uniplus
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          set +e
+          pytest tests/ \
+            -v \
+            --tb=short \
+            -m "infrastructure or integration" \
+            --junitxml=integration-test-results.xml \
+            --ignore=tests/conftest.py
+          TEST_EXIT_CODE=$?
+          set -e
+          
+          if [ $TEST_EXIT_CODE -eq 0 ]; then
+            echo "passed=true" >> $GITHUB_OUTPUT
+            echo "✅ All integration tests passed!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "passed=false" >> $GITHUB_OUTPUT
+            echo "❌ Some integration tests failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          exit $TEST_EXIT_CODE
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results-dev
+          path: integration-test-results.xml
+          retention-days: 30
+
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: 'integration-test-results.xml'
+          fail_on_failure: false
+          require_tests: false
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## 🧪 TAAC Integration Tests (Development)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** dev" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ${{ steps.tests.outputs.passed == 'true' && '✅ Passed' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # STAGE 6: Create Pull Request to Main (dev* branches)
+  # ============================================
+  create-pr:
+    name: Create PR to Main
+    runs-on: ubuntu-latest
+    needs: [deploy-dev, integration-tests-dev]
+    if: |
+      github.event_name == 'push' && 
+      startsWith(github.ref, 'refs/heads/dev') &&
+      needs.deploy-dev.outputs.deployed == 'true' &&
+      needs.integration-tests-dev.outputs.tests_passed == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get Branch Info
+        id: branch-info
+        run: |
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "pr_title=🚀 Deploy to Production: $BRANCH_NAME" >> $GITHUB_OUTPUT
+
+      - name: Check for Existing PR
+        id: check-pr
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${{ steps.branch-info.outputs.branch_name }}`,
+              base: 'main'
+            });
+            
+            if (prs.length > 0) {
+              console.log(`PR already exists: #${prs[0].number}`);
+              core.setOutput('exists', 'true');
+              core.setOutput('pr_number', prs[0].number);
+            } else {
+              core.setOutput('exists', 'false');
+            }
+
+      - name: Create Pull Request
+        if: steps.check-pr.outputs.exists == 'false'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const branchName = '${{ steps.branch-info.outputs.branch_name }}';
+            const prTitle = '${{ steps.branch-info.outputs.pr_title }}';
+            
+            const body = `## 🎯 Pull Request para Produção
+
+            ### Origem
+            - **Branch:** \`${branchName}\`
+            - **Commit:** \`${{ github.sha }}\`
+            - **Autor:** @${{ github.actor }}
+
+            ### ✅ Validações Realizadas
+            - [x] Testes unitários passaram
+            - [x] Build do Docker realizado com sucesso
+            - [x] Scan de segurança executado
+            - [x] Deploy no ambiente de desenvolvimento bem-sucedido
+
+            ### 📋 Checklist para Aprovação
+            - [ ] Código revisado
+            - [ ] Testes de integração verificados
+            - [ ] Documentação atualizada (se aplicável)
+            - [ ] Aprovado por pelo menos 1 revisor
+
+            ---
+            *Este PR foi criado automaticamente pelo CI/CD Pipeline.*`;
+
+            const { data: pr } = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: prTitle,
+              head: branchName,
+              base: 'main',
+              body: body
+            });
+
+            console.log(`Created PR #${pr.number}`);
+            
+            // Add labels
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              labels: ['auto-pr', 'ready-for-review', 'deploy-prod']
+            });
+
+      - name: PR Summary
+        run: |
+          echo "## 📝 Pull Request" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.check-pr.outputs.exists }}" == "true" ]; then
+            echo "PR já existe: #${{ steps.check-pr.outputs.pr_number }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Novo PR criado para merge em **main**" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Validações Realizadas" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] Testes unitários" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] Build Docker" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] Scan de segurança" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] Deploy em desenvolvimento" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] **Testes de integração TAAC**" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # STAGE 7: Deploy to Production (main branch)
+  # ============================================
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [docker-prebuild, security-scan]
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+    environment:
+      name: production
+      url: https://app.uniplus.com
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Environment Variables
+        run: |
+          echo "ENVIRONMENT=prod" >> $GITHUB_ENV
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Images (Prod)
+        run: |
+          for service in portal-aluno portal-professor sistema-academico video-api; do
+            if [ -f "docker/$service/Dockerfile" ]; then
+              echo "Building and pushing $service..."
+              docker build -t ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:${{ github.sha }} \
+                           -t ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:latest \
+                           -f docker/$service/Dockerfile .
+              docker push ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:${{ github.sha }}
+              docker push ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:latest
+            fi
+          done
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: terraform/environments/prod
+
+      - name: Terraform Plan
+        run: |
+          terraform plan -no-color -input=false -out=tfplan \
+            -var="container_image=${{ steps.login-ecr.outputs.registry }}/uniplus-portal-aluno:${{ github.sha }}" \
+            -var="certificate_arn=${{ secrets.ACM_CERT_ARN }}" \
+            -var="cloudfront_certificate_arn=${{ secrets.ACM_CF_CERT_ARN }}" \
+            -var="domain_name=${{ secrets.DOMAIN_NAME }}"
+        working-directory: terraform/environments/prod
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: terraform/environments/prod
+
+      - name: Deploy Summary
+        run: |
+          echo "## 🎉 Production Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ env.SHORT_SHA }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** Production" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** https://app.uniplus.com" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on Slack (Success)
+        if: success()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: |
+            ✅ *Production deployment successful!*
+            - Commit: ${{ github.sha }}
+            - Actor: ${{ github.actor }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        continue-on-error: true
+
+      - name: Notify on Slack (Failure)
+        if: failure()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: |
+            ❌ *Production deployment FAILED!*
+            - Commit: ${{ github.sha }}
+            - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        continue-on-error: true
+
+  # ============================================
+  # STAGE 8: Infrastructure Tests (Post-Deploy Production)
+  # ============================================
+  infrastructure-tests-prod:
+    name: Infrastructure Tests (Production)
+    runs-on: ubuntu-latest
+    needs: deploy-prod
+    if: needs.deploy-prod.result == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Run Infrastructure Tests (Production)
+        env:
+          ENVIRONMENT: prod
+          PROJECT_NAME: uniplus
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          pytest tests/ \
+            -v \
+            --tb=short \
+            -m "infrastructure or integration" \
+            --junitxml=test-results-prod.xml \
+            --ignore=tests/conftest.py
+        continue-on-error: true
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: infrastructure-test-results-prod
+          path: test-results-prod.xml
+          retention-days: 30
+
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: 'test-results-prod.xml'
+          fail_on_failure: false
+          require_tests: false
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## 🧪 TAAC Infrastructure Tests (Production)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** Production" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${GITHUB_SHA::7}" >> $GITHUB_STEP_SUMMARY

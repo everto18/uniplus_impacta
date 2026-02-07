@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Acadêmico - UniPlus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/style.css">
+    <style>
+        .admin-layout {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            min-height: calc(100vh - 80px);
+        }
+
+        .admin-sidebar {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1.5rem;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .admin-sidebar h3 {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: rgba(255, 255, 255, 0.4);
+            margin: 1.5rem 0 0.75rem;
+        }
+
+        .admin-sidebar a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            border-radius: 10px;
+            transition: all 0.3s;
+            margin-bottom: 4px;
+        }
+
+        .admin-sidebar a:hover,
+        .admin-sidebar a.active {
+            background: var(--glass);
+            color: var(--light);
+        }
+
+        .admin-sidebar a.active {
+            background: var(--gradient);
+        }
+
+        .admin-sidebar a i {
+            width: 20px;
+            text-align: center;
+        }
+
+        .trend-up {
+            color: var(--success);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header glass">
+        <a href="/" class="logo">
+            <i class="fas fa-graduation-cap"></i>
+            <span>UniPlus</span>
+            <span style="font-size: 0.8rem; color: rgba(255,255,255,0.5); margin-left: 8px;">Admin</span>
+        </a>
+
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="position: relative;">
+                <input type="text" placeholder="Buscar..." class="form-input"
+                    style="width: 300px; padding: 10px 16px; padding-left: 40px;">
+                <i class="fas fa-search"
+                    style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.4);"></i>
+            </div>
+
+            <button class="btn btn-secondary" style="padding: 10px; position: relative;">
+                <i class="fas fa-bell"></i>
+                <span
+                    style="position: absolute; top: -4px; right: -4px; width: 18px; height: 18px; background: var(--danger); border-radius: 50%; font-size: 0.7rem; display: flex; align-items: center; justify-content: center;">5</span>
+            </button>
+        </div>
+
+        <div class="user-menu">
+            <span>Admin Sistema</span>
+            <div class="user-avatar" style="background: var(--danger);">AS</div>
+        </div>
+    </header>
+
+    <div class="admin-layout">
+        <!-- Sidebar -->
+        <aside class="admin-sidebar">
+            <a href="/" class="active"><i class="fas fa-th-large"></i> Dashboard</a>
+
+            <h3>Acadêmico</h3>
+            <a href="cursos.html"><i class="fas fa-book"></i> Cursos</a>
+            <a href="#"><i class="fas fa-layer-group"></i> Disciplinas</a>
+            <a href="#"><i class="fas fa-users-class"></i> Turmas</a>
+
+            <h3>Usuários</h3>
+            <a href="#"><i class="fas fa-user-graduate"></i> Alunos</a>
+            <a href="#"><i class="fas fa-chalkboard-teacher"></i> Professores</a>
+            <a href="#"><i class="fas fa-user-shield"></i> Administradores</a>
+
+            <h3>Conteúdo</h3>
+            <a href="#"><i class="fas fa-video"></i> Vídeos</a>
+            <a href="#"><i class="fas fa-file-alt"></i> Materiais</a>
+
+            <h3>Relatórios</h3>
+            <a href="#"><i class="fas fa-chart-bar"></i> Estatísticas</a>
+            <a href="#"><i class="fas fa-history"></i> Logs</a>
+
+            <h3>Sistema</h3>
+            <a href="#"><i class="fas fa-cog"></i> Configurações</a>
+        </aside>
+
+        <!-- Main Content -->
+        <main style="padding: 2rem;">
+            <div class="page-header fade-in">
+                <h1 class="page-title">Dashboard Administrativo</h1>
+                <p class="page-subtitle">Visão geral do sistema UniPlus</p>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card glass fade-in stagger-1">
+                    <div class="stat-icon blue"><i class="fas fa-user-graduate"></i></div>
+                    <div class="stat-info">
+                        <h3>2,450</h3>
+                        <p>Alunos Matriculados</p>
+                    </div>
+                    <span class="trend-up" style="font-size: 0.85rem; font-weight: 600;">+12%</span>
+                </div>
+                <div class="stat-card glass fade-in stagger-2">
+                    <div class="stat-icon green"><i class="fas fa-chalkboard-teacher"></i></div>
+                    <div class="stat-info">
+                        <h3>156</h3>
+                        <p>Professores Ativos</p>
+                    </div>
+                    <span class="trend-up" style="font-size: 0.85rem; font-weight: 600;">+5%</span>
+                </div>
+                <div class="stat-card glass fade-in stagger-3">
+                    <div class="stat-icon purple"><i class="fas fa-book"></i></div>
+                    <div class="stat-info">
+                        <h3>48</h3>
+                        <p>Cursos Disponíveis</p>
+                    </div>
+                    <span class="trend-up" style="font-size: 0.85rem; font-weight: 600;">+3</span>
+                </div>
+                <div class="stat-card glass fade-in stagger-4">
+                    <div class="stat-icon orange"><i class="fas fa-video"></i></div>
+                    <div class="stat-info">
+                        <h3>1,280</h3>
+                        <p>Aulas Publicadas</p>
+                    </div>
+                    <span class="trend-up" style="font-size: 0.85rem; font-weight: 600;">+89</span>
+                </div>
+            </div>
+
+            <!-- Two Column -->
+            <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 2rem; margin-top: 2rem;">
+                <!-- Cursos -->
+                <div class="glass fade-in" style="padding: 1.5rem;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h3><i class="fas fa-book" style="color: var(--primary);"></i> Cursos</h3>
+                        <a href="cursos.html" class="btn btn-secondary"
+                            style="padding: 8px 16px; font-size: 0.85rem;">Ver Todos</a>
+                    </div>
+
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Curso</th>
+                                    <th>Alunos</th>
+                                    <th>Disciplinas</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style="font-weight: 500;">Análise e Desenvolvimento de Sistemas</td>
+                                    <td>850</td>
+                                    <td>24</td>
+                                    <td><a href="#" style="color: var(--primary);"><i class="fas fa-eye"></i></a></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: 500;">Ciência da Computação</td>
+                                    <td>620</td>
+                                    <td>32</td>
+                                    <td><a href="#" style="color: var(--primary);"><i class="fas fa-eye"></i></a></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: 500;">Engenharia de Software</td>
+                                    <td>480</td>
+                                    <td>28</td>
+                                    <td><a href="#" style="color: var(--primary);"><i class="fas fa-eye"></i></a></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: 500;">Sistemas de Informação</td>
+                                    <td>500</td>
+                                    <td>26</td>
+                                    <td><a href="#" style="color: var(--primary);"><i class="fas fa-eye"></i></a></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Atividades Recentes -->
+                <div class="glass fade-in stagger-2" style="padding: 1.5rem;">
+                    <h3 style="margin-bottom: 1.5rem;"><i class="fas fa-clock" style="color: var(--accent);"></i>
+                        Atividades Recentes</h3>
+
+                    <div
+                        style="display: flex; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <div
+                            style="width: 40px; height: 40px; border-radius: 50%; background: var(--gradient); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;">
+                            P
+                        </div>
+                        <div style="flex: 1;">
+                            <p><strong>Prof. João Santos</strong> publicou nova aula</p>
+                            <p style="font-size: 0.9rem; color: var(--secondary);">Árvores Binárias</p>
+                        </div>
+                        <span style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">há 5 min</span>
+                    </div>
+
+                    <div
+                        style="display: flex; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <div
+                            style="width: 40px; height: 40px; border-radius: 50%; background: var(--gradient); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;">
+                            M
+                        </div>
+                        <div style="flex: 1;">
+                            <p><strong>Maria Silva</strong> concluiu disciplina</p>
+                            <p style="font-size: 0.9rem; color: var(--secondary);">Banco de Dados</p>
+                        </div>
+                        <span style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">há 15 min</span>
+                    </div>
+
+                    <div
+                        style="display: flex; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <div
+                            style="width: 40px; height: 40px; border-radius: 50%; background: var(--gradient); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;">
+                            A
+                        </div>
+                        <div style="flex: 1;">
+                            <p><strong>Admin</strong> criou novo curso</p>
+                            <p style="font-size: 0.9rem; color: var(--secondary);">Ciência de Dados</p>
+                        </div>
+                        <span style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">há 1 hora</span>
+                    </div>
+
+                    <div style="display: flex; gap: 1rem; padding: 1rem 0;">
+                        <div
+                            style="width: 40px; height: 40px; border-radius: 50%; background: var(--gradient); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;">
+                            P
+                        </div>
+                        <div style="flex: 1;">
+                            <p><strong>Prof. Ana Costa</strong> lançou notas</p>
+                            <p style="font-size: 0.9rem; color: var(--secondary);">Turma B - ADS</p>
+                        </div>
+                        <span style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">há 2 horas</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="glass fade-in" style="padding: 1.5rem; margin-top: 2rem;">
+                <h3 style="margin-bottom: 1rem;"><i class="fas fa-bolt" style="color: var(--accent);"></i> Ações Rápidas
+                </h3>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <a href="cursos.html" class="btn btn-primary"><i class="fas fa-plus"></i> Novo Curso</a>
+                    <a href="#" class="btn btn-secondary"><i class="fas fa-user-plus"></i> Matricular Aluno</a>
+                    <a href="#" class="btn btn-secondary"><i class="fas fa-user-tie"></i> Cadastrar Professor</a>
+                    <a href="#" class="btn btn-secondary"><i class="fas fa-file-export"></i> Gerar Relatório</a>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+
+</html>

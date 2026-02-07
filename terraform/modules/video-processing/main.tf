@@ -15,6 +15,7 @@ resource "aws_sqs_queue" "video_processing_dlq" {
   name = "${local.name_prefix}-video-dlq"
 
   message_retention_seconds = 1209600 # 14 days
+  sqs_managed_sse_enabled   = true
 
   tags = merge(var.tags, {
     Name = "${local.name_prefix}-video-dlq"
@@ -31,6 +32,7 @@ resource "aws_sqs_queue" "video_processing" {
   visibility_timeout_seconds = 300   # 5 min (Step Functions timeout)
   message_retention_seconds  = 86400 # 1 day
   receive_wait_time_seconds  = 20    # Long polling
+  sqs_managed_sse_enabled    = true
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.video_processing_dlq.arn
@@ -306,7 +308,8 @@ resource "aws_media_convert_queue" "main" {
 # SNS Topic - Video Processing Notifications
 #------------------------------------------------------------------------------
 resource "aws_sns_topic" "video_notifications" {
-  name = "${local.name_prefix}-video-notifications"
+  name              = "${local.name_prefix}-video-notifications"
+  kms_master_key_id = "alias/aws/sns"
 
   tags = merge(var.tags, {
     Name = "${local.name_prefix}-video-notifications"

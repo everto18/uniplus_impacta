@@ -1,35 +1,70 @@
 # UniPlus - Video API
-# Node.js application for video streaming
+# PHP API container
 
-FROM node:20-alpine
+FROM php:8.3-fpm-alpine
 
-# Install dependencies
+# Install system dependencies
 RUN apk add --no-cache \
+    nginx \
+    supervisor \
     curl \
-    ffmpeg
+    libpng-dev \
+    libzip-dev \
+    oniguruma-dev
+
+# Install PHP extensions
+RUN docker-php-ext-install -j$(nproc) \
+    mbstring \
+    zip \
+    opcache \
+    json
 
 # Set working directory
-WORKDIR /app
+WORKDIR /var/www/html
 
-# Copy package files
-COPY src/video-api/package*.json ./
+# Copy application files
+COPY docker/video-api/src/ /var/www/html/public/
 
-# Install dependencies
-RUN npm ci --only=production
+# Create nginx config for API
+RUN echo 'server { \n\
+    listen 3000; \n\
+    server_name _; \n\
+    root /var/www/html/public; \n\
+    index index.php; \n\
+    \n\
+    location / { \n\
+        try_files $uri $uri/ /index.php?$query_string; \n\
+    } \n\
+    \n\
+    location ~ \.php$ { \n\
+        fastcgi_pass 127.0.0.1:9000; \n\
+        fastcgi_index index.php; \n\
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; \n\
+        include fastcgi_params; \n\
+    } \n\
+    \n\
+    location = /health { \n\
+        try_files $uri /health.php; \n\
+    } \n\
+}' > /etc/nginx/http.d/default.conf
 
-# Copy application code
-COPY src/video-api/ ./
+# Create supervisord config
+RUN echo '[supervisord] \n\
+nodaemon=true \n\
+user=root \n\
+\n\
+[program:php-fpm] \n\
+command=/usr/local/sbin/php-fpm -F \n\
+autostart=true \n\
+autorestart=true \n\
+\n\
+[program:nginx] \n\
+command=/usr/sbin/nginx -g "daemon off;" \n\
+autostart=true \n\
+autorestart=true' > /etc/supervisor/conf.d/supervisord.conf
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs \
-    && adduser -S nodejs -u 1001 \
-    && chown -R nodejs:nodejs /app
-
-USER nodejs
-
-# Environment variables
-ENV NODE_ENV=production
-ENV PORT=3000
+# Set permissions
+RUN chown -R www-data:www-data /var/www/html
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
@@ -38,5 +73,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
 # Expose port
 EXPOSE 3000
 
-# Start application
-CMD ["node", "server.js"]
+# Start supervisor
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

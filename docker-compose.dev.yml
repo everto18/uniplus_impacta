@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  portal-aluno:
+    build:
+      context: .
+      dockerfile: docker/portal-aluno/Dockerfile
+    ports:
+      - "8081:80"
+    environment:
+      - APP_ENV=local
+    networks:
+      - uniplus
+
+  portal-professor:
+    build:
+      context: .
+      dockerfile: docker/portal-professor/Dockerfile
+    ports:
+      - "8082:80"
+    environment:
+      - APP_ENV=local
+    networks:
+      - uniplus
+
+  sistema-academico:
+    build:
+      context: .
+      dockerfile: docker/sistema-academico/Dockerfile
+    ports:
+      - "8083:80"
+    environment:
+      - APP_ENV=local
+    networks:
+      - uniplus
+
+  video-api:
+    build:
+      context: .
+      dockerfile: docker/video-api/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - APP_ENV=local
+    networks:
+      - uniplus
+
+networks:
+  uniplus:
+    driver: bridge

@@ -44,6 +44,7 @@ resource "aws_lb" "main" {
   subnets            = var.public_subnet_ids
 
   enable_deletion_protection = var.environment == "prod"
+  drop_invalid_header_fields = true
   enable_http2               = true
   idle_timeout               = 60
 

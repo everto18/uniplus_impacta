@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal do Professor - UniPlus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/style.css">
+    <style>
+        .upload-zone {
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .upload-zone i {
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header glass">
+        <a href="/" class="logo">
+            <i class="fas fa-graduation-cap"></i>
+            <span>UniPlus</span>
+        </a>
+
+        <nav class="nav">
+            <a href="/" class="active"><i class="fas fa-home"></i> Início</a>
+            <a href="turmas.html"><i class="fas fa-users"></i> Turmas</a>
+            <a href="upload.html"><i class="fas fa-cloud-upload-alt"></i> Upload</a>
+            <a href="#"><i class="fas fa-folder"></i> Conteúdos</a>
+        </nav>
+
+        <div class="user-menu">
+            <span>Prof. João Santos</span>
+            <div class="user-avatar">JS</div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container">
+        <div class="page-header fade-in">
+            <h1 class="page-title">Bem-vindo, João! 📚</h1>
+            <p class="page-subtitle">Gerencie suas turmas e conteúdos</p>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card glass fade-in stagger-1">
+                <div class="stat-icon blue"><i class="fas fa-users"></i></div>
+                <div class="stat-info">
+                    <h3>125</h3>
+                    <p>Alunos Ativos</p>
+                </div>
+            </div>
+            <div class="stat-card glass fade-in stagger-2">
+                <div class="stat-icon green"><i class="fas fa-video"></i></div>
+                <div class="stat-info">
+                    <h3>68</h3>
+                    <p>Vídeos Publicados</p>
+                </div>
+            </div>
+            <div class="stat-card glass fade-in stagger-3">
+                <div class="stat-icon purple"><i class="fas fa-eye"></i></div>
+                <div class="stat-info">
+                    <h3>12.5K</h3>
+                    <p>Visualizações</p>
+                </div>
+            </div>
+            <div class="stat-card glass fade-in stagger-4">
+                <div class="stat-icon orange"><i class="fas fa-star"></i></div>
+                <div class="stat-info">
+                    <h3>4.8</h3>
+                    <p>Avaliação Média</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Two Column Layout -->
+        <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 2rem; margin-top: 2rem;">
+            <!-- Turmas -->
+            <section>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h2 style="font-size: 1.3rem;">
+                        <i class="fas fa-chalkboard-teacher" style="color: var(--primary);"></i>
+                        Minhas Turmas
+                    </h2>
+                    <a href="turmas.html" class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.85rem;">
+                        Ver Todas <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+
+                <!-- Turma 1 -->
+                <div class="card glass fade-in stagger-1"
+                    style="margin-bottom: 1rem; display: flex; align-items: center; gap: 1.5rem;">
+                    <div
+                        style="width: 60px; height: 60px; border-radius: 12px; background: var(--gradient); display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-users" style="font-size: 1.5rem; color: white;"></i>
+                    </div>
+                    <div style="flex: 1;">
+                        <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem;">Algoritmos - Turma A</h3>
+                        <p style="font-size: 0.9rem; color: rgba(255,255,255,0.6);">
+                            45 alunos • 24 aulas
+                        </p>
+                        <div class="progress-bar" style="margin-top: 0.5rem; max-width: 200px;">
+                            <div class="progress-fill" style="width: 75%;"></div>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 1.5rem; font-weight: 700; color: var(--primary);">75%</span>
+                        <p style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">concluído</p>
+                    </div>
+                    <a href="turmas.html" class="btn btn-primary" style="padding: 10px 20px;">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                </div>
+
+                <!-- Turma 2 -->
+                <div class="card glass fade-in stagger-2"
+                    style="margin-bottom: 1rem; display: flex; align-items: center; gap: 1.5rem;">
+                    <div
+                        style="width: 60px; height: 60px; border-radius: 12px; background: var(--gradient); display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-users" style="font-size: 1.5rem; color: white;"></i>
+                    </div>
+                    <div style="flex: 1;">
+                        <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem;">Algoritmos - Turma B</h3>
+                        <p style="font-size: 0.9rem; color: rgba(255,255,255,0.6);">
+                            38 alunos • 24 aulas
+                        </p>
+                        <div class="progress-bar" style="margin-top: 0.5rem; max-width: 200px;">
+                            <div class="progress-fill" style="width: 70%;"></div>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 1.5rem; font-weight: 700; color: var(--primary);">70%</span>
+                        <p style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">concluído</p>
+                    </div>
+                    <a href="turmas.html" class="btn btn-primary" style="padding: 10px 20px;">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                </div>
+
+                <!-- Turma 3 -->
+                <div class="card glass fade-in stagger-3"
+                    style="margin-bottom: 1rem; display: flex; align-items: center; gap: 1.5rem;">
+                    <div
+                        style="width: 60px; height: 60px; border-radius: 12px; background: var(--gradient); display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-users" style="font-size: 1.5rem; color: white;"></i>
+                    </div>
+                    <div style="flex: 1;">
+                        <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem;">Estrutura de Dados</h3>
+                        <p style="font-size: 0.9rem; color: rgba(255,255,255,0.6);">
+                            42 alunos • 20 aulas
+                        </p>
+                        <div class="progress-bar" style="margin-top: 0.5rem; max-width: 200px;">
+                            <div class="progress-fill" style="width: 55%;"></div>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 1.5rem; font-weight: 700; color: var(--primary);">55%</span>
+                        <p style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">concluído</p>
+                    </div>
+                    <a href="turmas.html" class="btn btn-primary" style="padding: 10px 20px;">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                </div>
+            </section>
+
+            <!-- Sidebar -->
+            <aside>
+                <!-- Quick Upload -->
+                <div class="glass" style="padding: 1.5rem; margin-bottom: 1.5rem;">
+                    <h3 style="margin-bottom: 1rem;">
+                        <i class="fas fa-rocket" style="color: var(--accent);"></i>
+                        Upload Rápido
+                    </h3>
+                    <a href="upload.html" class="upload-zone"
+                        style="display: block; text-decoration: none; color: inherit;">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p style="font-weight: 500;">Arraste arquivos aqui</p>
+                        <p style="font-size: 0.85rem; color: rgba(255,255,255,0.5);">ou clique para selecionar</p>
+                    </a>
+                </div>
+
+                <!-- Recent Uploads -->
+                <div class="glass" style="padding: 1.5rem;">
+                    <h3 style="margin-bottom: 1rem;">
+                        <i class="fas fa-history" style="color: var(--secondary);"></i>
+                        Uploads Recentes
+                    </h3>
+
+                    <div
+                        style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <div
+                            style="width: 40px; height: 40px; border-radius: 8px; background: var(--primary); display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-video" style="color: white;"></i>
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <p
+                                style="font-weight: 500; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                Árvores Binárias.mp4</p>
+                            <p style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">05/02 • 1.2 GB</p>
+                        </div>
+                        <span class="badge badge-warning"><i class="fas fa-spinner fa-spin"></i> Processando</span>
+                    </div>
+
+                    <div
+                        style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <div
+                            style="width: 40px; height: 40px; border-radius: 8px; background: var(--danger); display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-file-pdf" style="color: white;"></i>
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <p
+                                style="font-weight: 500; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                Slides Aula 15.pdf</p>
+                            <p style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">04/02 • 8.5 MB</p>
+                        </div>
+                        <span class="badge badge-success"><i class="fas fa-check"></i> Pronto</span>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 0;">
+                        <div
+                            style="width: 40px; height: 40px; border-radius: 8px; background: var(--danger); display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-file-pdf" style="color: white;"></i>
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <p
+                                style="font-weight: 500; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                Exercícios Lista 5.pdf</p>
+                            <p style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">03/02 • 2.1 MB</p>
+                        </div>
+                        <span class="badge badge-success"><i class="fas fa-check"></i> Pronto</span>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <footer style="text-align: center; padding: 2rem; color: rgba(255,255,255,0.5); font-size: 0.9rem;">
+        <p>© 2026 UniPlus - Universidade Digital. Todos os direitos reservados.</p>
+    </footer>
+</body>
+
+</html>

@@ -38,7 +38,7 @@ resource "aws_cloudfront_distribution" "main" {
   enabled             = true
   is_ipv6_enabled     = true
   comment             = "${local.name_prefix} CDN"
-  default_root_object = ""
+  default_root_object = "index.html"
   price_class         = var.price_class
   aliases             = var.domain_name != "" && var.certificate_arn != "" ? [var.domain_name, "www.${var.domain_name}"] : []
 

@@ -1,5 +1,5 @@
-# UniPlus - Portal do Aluno
-# Laravel/PHP application container
+# UniPlus - Portal do Professor
+# PHP static frontend container
 
 FROM php:8.3-fpm-alpine
 
@@ -8,53 +8,33 @@ RUN apk add --no-cache \
     nginx \
     supervisor \
     curl \
-    git \
-    zip \
-    unzip \
     libpng-dev \
     libjpeg-turbo-dev \
     freetype-dev \
     libzip-dev \
-    oniguruma-dev \
-    icu-dev \
-    mysql-client
+    oniguruma-dev
 
 # Install PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
     gd \
-    pdo \
-    pdo_mysql \
     mbstring \
     zip \
-    bcmath \
-    opcache \
-    intl \
-    pcntl
-
-# Install Composer
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+    opcache
 
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy application files
-COPY src/portal-aluno/ /var/www/html/
-
-# Install dependencies
-RUN if [ -f composer.json ]; then \
-    composer install --no-dev --optimize-autoloader --no-interaction; \
-    fi
+# Copy application files (static PHP frontend)
+COPY docker/portal-professor/src/ /var/www/html/public/
 
 # Copy configuration files
-COPY docker/portal-aluno/nginx.conf /etc/nginx/http.d/default.conf
-COPY docker/portal-aluno/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY docker/portal-aluno/php.ini /usr/local/etc/php/conf.d/custom.ini
+COPY docker/portal-professor/nginx.conf /etc/nginx/http.d/default.conf
+COPY docker/portal-professor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/portal-professor/php.ini /usr/local/etc/php/conf.d/custom.ini
 
 # Set permissions
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html/storage 2>/dev/null || true \
-    && chmod -R 755 /var/www/html/bootstrap/cache 2>/dev/null || true
+RUN chown -R www-data:www-data /var/www/html
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \

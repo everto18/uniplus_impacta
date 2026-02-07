@@ -123,10 +123,11 @@ resource "aws_db_instance" "main" {
   port     = 3306
 
   # Network
-  db_subnet_group_name   = aws_db_subnet_group.main.name
-  vpc_security_group_ids = [var.security_group_id]
-  publicly_accessible    = false
-  multi_az               = var.multi_az
+  db_subnet_group_name                = aws_db_subnet_group.main.name
+  vpc_security_group_ids              = [var.security_group_id]
+  publicly_accessible                 = false
+  multi_az                            = var.multi_az
+  iam_database_authentication_enabled = true
 
   # Backup
   backup_retention_period = var.backup_retention_period

@@ -110,6 +110,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "raw_videos" {
     id     = "delete-after-processing"
     status = "Enabled"
 
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+
     expiration {
       days = 7
     }
@@ -178,6 +182,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "processed_videos" {
   rule {
     id     = "intelligent-tiering"
     status = "Enabled"
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
 
     transition {
       days          = 30

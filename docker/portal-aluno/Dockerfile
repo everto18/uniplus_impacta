@@ -38,13 +38,10 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy application files
-COPY src/portal-aluno/ /var/www/html/
+# Copy application files (static PHP frontend)
+COPY docker/portal-aluno/src/ /var/www/html/public/
 
-# Install dependencies
-RUN if [ -f composer.json ]; then \
-    composer install --no-dev --optimize-autoloader --no-interaction; \
-    fi
+# No composer dependencies needed for static PHP
 
 # Copy configuration files
 COPY docker/portal-aluno/nginx.conf /etc/nginx/http.d/default.conf
