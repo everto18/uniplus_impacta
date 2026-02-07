@@ -80,6 +80,16 @@ locals {
 }
 
 #------------------------------------------------------------------------------
+# ECR Module - Container Registries
+#------------------------------------------------------------------------------
+module "ecr" {
+  source = "../../modules/ecr"
+
+  services = ["portal-aluno", "portal-professor", "sistema-academico", "video-api"]
+  tags     = local.common_tags
+}
+
+#------------------------------------------------------------------------------
 # Networking Module
 #------------------------------------------------------------------------------
 module "networking" {

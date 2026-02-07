@@ -318,12 +318,41 @@ jobs:
 
       - name: Skip Apply (Plan Only)
         id: skip-apply
-        if: needs.config.outputs.tf_apply != 'true'
+        if: needs.config.outputs.tf_apply != 'true' && needs.config.outputs.tf_destroy != 'true'
         run: |
           echo "⏭️ Terraform Apply skipped (tf_apply=false in .iupipes)" >> $GITHUB_STEP_SUMMARY
           echo "deployed=false" >> $GITHUB_OUTPUT
 
+      - name: Validate Destroy Request
+        if: needs.config.outputs.tf_destroy == 'true'
+        run: |
+          if [ "${{ needs.config.outputs.tf_apply }}" == "true" ]; then
+            echo "❌ ERROR: Cannot have both apply=true and destroy=true" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "## ⚠️ DESTROY REQUESTED" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The following resources will be **PERMANENTLY DELETED**:" >> $GITHUB_STEP_SUMMARY
+          echo "- ECR repositories and all images" >> $GITHUB_STEP_SUMMARY
+          echo "- ECS clusters and services" >> $GITHUB_STEP_SUMMARY
+          echo "- RDS database" >> $GITHUB_STEP_SUMMARY
+          echo "- VPC and networking" >> $GITHUB_STEP_SUMMARY
+          echo "- S3 buckets (with content)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Terraform Destroy
+        id: destroy
+        if: needs.config.outputs.tf_destroy == 'true'
+        run: |
+          echo "🔥 Starting Terraform Destroy..."
+          terraform destroy -auto-approve
+          echo "destroyed=true" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🗑️ Infrastructure Destroyed" >> $GITHUB_STEP_SUMMARY
+          echo "All resources have been permanently removed." >> $GITHUB_STEP_SUMMARY
+        working-directory: terraform/environments/dev
+
       - name: Deploy Summary
+        if: needs.config.outputs.tf_destroy != 'true'
         run: |
           echo "## 🚀 Development Deployment Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
