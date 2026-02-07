@@ -10,7 +10,8 @@ RUN apk add --no-cache \
     curl \
     libpng-dev \
     libzip-dev \
-    oniguruma-dev
+    oniguruma-dev \
+    && mkdir -p /etc/supervisor/conf.d
 
 # Install PHP extensions (json is built-in since PHP 8.0)
 RUN docker-php-ext-install -j$(nproc) \
