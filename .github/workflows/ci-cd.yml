@@ -38,12 +38,87 @@ permissions:
 
 jobs:
   # ============================================
+  # STAGE 0: Read Pipeline Configuration
+  # ============================================
+  config:
+    name: Read Config
+    runs-on: ubuntu-latest
+    outputs:
+      testes_unitarios: ${{ steps.config.outputs.testes_unitarios }}
+      docker_build: ${{ steps.config.outputs.docker_build }}
+      security_scan: ${{ steps.config.outputs.security_scan }}
+      deploy_dev: ${{ steps.config.outputs.deploy_dev }}
+      testes_integracao: ${{ steps.config.outputs.testes_integracao }}
+      create_pr: ${{ steps.config.outputs.create_pr }}
+      tf_init: ${{ steps.config.outputs.tf_init }}
+      tf_plan: ${{ steps.config.outputs.tf_plan }}
+      tf_apply: ${{ steps.config.outputs.tf_apply }}
+      tf_destroy: ${{ steps.config.outputs.tf_destroy }}
+      slack: ${{ steps.config.outputs.slack }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse .iupipes config
+        id: config
+        run: |
+          if [ -f ".iupipes" ]; then
+            echo "📄 Reading .iupipes configuration..."
+            
+            # Function to read config value
+            get_config() {
+              grep -E "^$1\s*=" .iupipes | sed 's/.*=\s*//' | tr -d ' ' | tr '[:upper:]' '[:lower:]'
+            }
+            
+            # Pipeline settings
+            echo "testes_unitarios=$(get_config 'testes_unitarios')" >> $GITHUB_OUTPUT
+            echo "docker_build=$(get_config 'docker_build')" >> $GITHUB_OUTPUT
+            echo "security_scan=$(get_config 'security_scan')" >> $GITHUB_OUTPUT
+            echo "deploy_dev=$(get_config 'deploy_dev')" >> $GITHUB_OUTPUT
+            echo "testes_integracao=$(get_config 'testes_integracao')" >> $GITHUB_OUTPUT
+            echo "create_pr=$(get_config 'create_pr')" >> $GITHUB_OUTPUT
+            
+            # Terraform settings
+            echo "tf_init=$(get_config 'init')" >> $GITHUB_OUTPUT
+            echo "tf_plan=$(get_config 'plan')" >> $GITHUB_OUTPUT
+            echo "tf_apply=$(get_config 'apply')" >> $GITHUB_OUTPUT
+            echo "tf_destroy=$(get_config 'destroy')" >> $GITHUB_OUTPUT
+            
+            # Notifications
+            echo "slack=$(get_config 'slack')" >> $GITHUB_OUTPUT
+            
+            echo "## 📋 Pipeline Configuration" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Testes Unitários | $(get_config 'testes_unitarios') |" >> $GITHUB_STEP_SUMMARY
+            echo "| Docker Build | $(get_config 'docker_build') |" >> $GITHUB_STEP_SUMMARY
+            echo "| Terraform Init | $(get_config 'init') |" >> $GITHUB_STEP_SUMMARY
+            echo "| Terraform Plan | $(get_config 'plan') |" >> $GITHUB_STEP_SUMMARY
+            echo "| Terraform Apply | $(get_config 'apply') |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ .iupipes not found, using defaults (all enabled)"
+            echo "testes_unitarios=true" >> $GITHUB_OUTPUT
+            echo "docker_build=true" >> $GITHUB_OUTPUT
+            echo "security_scan=true" >> $GITHUB_OUTPUT
+            echo "deploy_dev=true" >> $GITHUB_OUTPUT
+            echo "testes_integracao=true" >> $GITHUB_OUTPUT
+            echo "create_pr=true" >> $GITHUB_OUTPUT
+            echo "tf_init=true" >> $GITHUB_OUTPUT
+            echo "tf_plan=true" >> $GITHUB_OUTPUT
+            echo "tf_apply=true" >> $GITHUB_OUTPUT
+            echo "tf_destroy=false" >> $GITHUB_OUTPUT
+            echo "slack=true" >> $GITHUB_OUTPUT
+          fi
+
+  # ============================================
   # STAGE 1: Unit Tests
   # ============================================
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    needs: config
+    if: needs.config.outputs.testes_unitarios == 'true'
     strategy:
       matrix:
         service:
@@ -93,8 +168,11 @@ jobs:
   docker-prebuild:
     name: Docker Pre-Build
     runs-on: ubuntu-latest
-    needs: unit-tests
-    if: always() && (needs.unit-tests.result == 'success' || needs.unit-tests.result == 'skipped')
+    needs: [config, unit-tests]
+    if: |
+      always() && 
+      needs.config.outputs.docker_build == 'true' &&
+      (needs.unit-tests.result == 'success' || needs.unit-tests.result == 'skipped')
     strategy:
       matrix:
         service:
@@ -172,10 +250,11 @@ jobs:
   deploy-dev:
     name: Deploy to Development
     runs-on: ubuntu-latest
-    needs: [docker-prebuild, security-scan]
+    needs: [config, docker-prebuild, security-scan]
     if: |
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/dev')) ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+      needs.config.outputs.deploy_dev == 'true' &&
+      ((github.event_name == 'push' && startsWith(github.ref, 'refs/heads/dev')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev'))
     environment:
       name: development
     outputs:
@@ -231,10 +310,18 @@ jobs:
 
       - name: Terraform Apply
         id: deploy
+        if: needs.config.outputs.tf_apply == 'true'
         run: |
           terraform apply -auto-approve tfplan
           echo "deployed=true" >> $GITHUB_OUTPUT
         working-directory: terraform/environments/dev
+
+      - name: Skip Apply (Plan Only)
+        id: skip-apply
+        if: needs.config.outputs.tf_apply != 'true'
+        run: |
+          echo "⏭️ Terraform Apply skipped (tf_apply=false in .iupipes)" >> $GITHUB_STEP_SUMMARY
+          echo "deployed=false" >> $GITHUB_OUTPUT
 
       - name: Deploy Summary
         run: |

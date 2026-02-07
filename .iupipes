@@ -1,0 +1,38 @@
+# Configuração da Pipeline UniPlus
+# Controla quais stages devem ser executados
+
+[pipeline]
+# Testes unitários dos serviços
+testes_unitarios = true
+
+# Build de imagens Docker (pre-build sem push)
+docker_build = true
+
+# Scan de segurança (Semgrep, Trivy)
+security_scan = true
+
+# Deploy para ambiente de desenvolvimento
+deploy_dev = true
+
+# Testes de integração TAAC
+testes_integracao = true
+
+# Criação automática de PR para main
+create_pr = true
+
+[terraform]
+# Inicialização do Terraform
+init = true
+
+# Plano do Terraform (mostra mudanças)
+plan = true
+
+# Aplicar mudanças (deploy efetivo)
+apply = false
+
+# Destruir infraestrutura
+destroy = false
+
+[notifications]
+# Notificações Slack
+slack = false
