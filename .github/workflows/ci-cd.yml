@@ -514,13 +514,25 @@ jobs:
         run: terraform init
         working-directory: terraform/environments/prod
 
+      - name: Fetch Config from SSM
+        id: ssm-config
+        run: |
+          ACM_CERT=$(aws ssm get-parameter --name "/uniplus/prod/acm-cert-arn" --query "Parameter.Value" --output text 2>/dev/null || echo "")
+          ACM_CF_CERT=$(aws ssm get-parameter --name "/uniplus/prod/acm-cf-cert-arn" --query "Parameter.Value" --output text 2>/dev/null || echo "")
+          DOMAIN=$(aws ssm get-parameter --name "/uniplus/prod/domain-name" --query "Parameter.Value" --output text 2>/dev/null || echo "app.uniplus.com")
+          
+          echo "acm_cert_arn=$ACM_CERT" >> $GITHUB_OUTPUT
+          echo "acm_cf_cert_arn=$ACM_CF_CERT" >> $GITHUB_OUTPUT
+          echo "domain_name=$DOMAIN" >> $GITHUB_OUTPUT
+          echo "📦 Config loaded from SSM Parameter Store" >> $GITHUB_STEP_SUMMARY
+
       - name: Terraform Plan
         run: |
           terraform plan -no-color -input=false -out=tfplan \
             -var="container_image=${{ steps.login-ecr.outputs.registry }}/uniplus-portal-aluno:${{ github.sha }}" \
-            -var="certificate_arn=${{ secrets.ACM_CERT_ARN }}" \
-            -var="cloudfront_certificate_arn=${{ secrets.ACM_CF_CERT_ARN }}" \
-            -var="domain_name=${{ secrets.DOMAIN_NAME }}"
+            -var="certificate_arn=${{ steps.ssm-config.outputs.acm_cert_arn }}" \
+            -var="cloudfront_certificate_arn=${{ steps.ssm-config.outputs.acm_cf_cert_arn }}" \
+            -var="domain_name=${{ steps.ssm-config.outputs.domain_name }}"
         working-directory: terraform/environments/prod
 
       - name: Terraform Apply
