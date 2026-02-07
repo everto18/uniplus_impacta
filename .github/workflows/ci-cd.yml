@@ -280,15 +280,21 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build Docker Images (Local)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Images (using prebuild cache)
         run: |
           echo "## 🐳 Building Docker Images" >> $GITHUB_STEP_SUMMARY
           for service in portal-aluno portal-professor sistema-academico video-api; do
             if [ -f "docker/$service/Dockerfile" ]; then
-              echo "Building $service..."
-              docker build -t uniplus-$service:${{ github.sha }} \
-                           -t uniplus-$service:dev \
-                           -f docker/$service/Dockerfile .
+              echo "Building $service (with cache)..."
+              docker buildx build \
+                --cache-from type=gha \
+                --load \
+                -t uniplus-$service:${{ github.sha }} \
+                -t uniplus-$service:dev \
+                -f docker/$service/Dockerfile .
               echo "- ✅ $service built" >> $GITHUB_STEP_SUMMARY
             fi
           done
