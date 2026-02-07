@@ -280,16 +280,16 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and Push Images (Dev)
+      - name: Build Docker Images (Local)
         run: |
+          echo "## 🐳 Building Docker Images" >> $GITHUB_STEP_SUMMARY
           for service in portal-aluno portal-professor sistema-academico video-api; do
             if [ -f "docker/$service/Dockerfile" ]; then
-              echo "Building and pushing $service..."
-              docker build -t ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:${{ github.sha }} \
-                           -t ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:dev \
+              echo "Building $service..."
+              docker build -t uniplus-$service:${{ github.sha }} \
+                           -t uniplus-$service:dev \
                            -f docker/$service/Dockerfile .
-              docker push ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:${{ github.sha }}
-              docker push ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:dev
+              echo "- ✅ $service built" >> $GITHUB_STEP_SUMMARY
             fi
           done
 
@@ -304,8 +304,7 @@ jobs:
 
       - name: Terraform Plan
         run: |
-          terraform plan -no-color -input=false -out=tfplan \
-            -var="container_image=${{ steps.login-ecr.outputs.registry }}/uniplus-portal-aluno:${{ github.sha }}"
+          terraform plan -no-color -input=false -out=tfplan
         working-directory: terraform/environments/dev
 
       - name: Terraform Apply
@@ -315,6 +314,20 @@ jobs:
           terraform apply -auto-approve tfplan
           echo "deployed=true" >> $GITHUB_OUTPUT
         working-directory: terraform/environments/dev
+
+      - name: Push Images to ECR
+        if: needs.config.outputs.tf_apply == 'true' && steps.deploy.outputs.deployed == 'true'
+        run: |
+          echo "## 📤 Pushing Images to ECR" >> $GITHUB_STEP_SUMMARY
+          ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          for service in portal-aluno portal-professor sistema-academico video-api; do
+            echo "Tagging and pushing $service..."
+            docker tag uniplus-$service:${{ github.sha }} $ECR_REGISTRY/uniplus-$service:${{ github.sha }}
+            docker tag uniplus-$service:dev $ECR_REGISTRY/uniplus-$service:dev
+            docker push $ECR_REGISTRY/uniplus-$service:${{ github.sha }}
+            docker push $ECR_REGISTRY/uniplus-$service:dev
+            echo "- ✅ $service pushed" >> $GITHUB_STEP_SUMMARY
+          done
 
       - name: Skip Apply (Plan Only)
         id: skip-apply
