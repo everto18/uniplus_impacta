@@ -302,3 +302,59 @@ module "monitoring" {
   alb_arn_suffix            = module.compute.alb_arn_suffix
   target_group_arn_suffixes = module.compute.target_group_arn_suffixes
 }
+
+#------------------------------------------------------------------------------
+# S3 CORS Configuration (after CDN to use CloudFront domain)
+# This overrides the default CORS in storage module with CloudFront URL
+#------------------------------------------------------------------------------
+locals {
+  cloudfront_origins = ["https://${module.cdn.distribution_domain_name}"]
+}
+
+resource "aws_s3_bucket_cors_configuration" "assets_cloudfront" {
+  bucket = module.storage.assets_bucket_id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "HEAD"]
+    allowed_origins = local.cloudfront_origins
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3600
+  }
+}
+
+resource "aws_s3_bucket_cors_configuration" "processed_videos_cloudfront" {
+  bucket = module.storage.processed_videos_bucket_id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "HEAD"]
+    allowed_origins = local.cloudfront_origins
+    expose_headers  = ["ETag", "Content-Length", "Content-Type"]
+    max_age_seconds = 86400
+  }
+}
+
+resource "aws_s3_bucket_cors_configuration" "raw_videos_cloudfront" {
+  bucket = module.storage.raw_videos_bucket_id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["PUT", "POST"]
+    allowed_origins = local.cloudfront_origins
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3600
+  }
+}
+
+resource "aws_s3_bucket_cors_configuration" "uploads_cloudfront" {
+  bucket = module.storage.uploads_bucket_id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "PUT", "POST", "DELETE"]
+    allowed_origins = local.cloudfront_origins
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3600
+  }
+}
