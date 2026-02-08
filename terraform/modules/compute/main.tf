@@ -233,7 +233,7 @@ resource "aws_ecs_task_definition" "services" {
         },
         {
           name      = "DB_NAME"
-          valueFrom = "${var.db_credentials_secret_arn}:dbname::"
+          valueFrom = "${var.db_credentials_secret_arn}:database::"
         }
       ] : []
 
