@@ -195,6 +195,47 @@ docker-compose up -d --build
 
 ---
 
+## 💰 Estimativa de Custos - Ambiente DEV
+
+### Recursos e Custos Mensais
+
+| Serviço | Configuração | Custo/Mês (USD) |
+|---------|--------------|-----------------|
+| **NAT Gateway** | 1 unidade (720h) | $32.40 |
+| **ECS Fargate** | 4 tasks (0.25 vCPU, 512MB cada) | $29.20 |
+| **ALB** | 1 unidade | $16.20 |
+| **RDS MySQL** | db.t3.micro, 20GB, sem backup | $12.41 |
+| **CloudFront** | PriceClass_100, ~50 GB | $4.25 |
+| **CloudWatch** | Logs + Dashboard | $3.00 |
+| **S3** | 3 buckets (~5 GB) | $0.12 |
+| **ECR** | 4 repositórios (~2 GB) | $0.20 |
+| **Secrets Manager** | 1 secret | $0.40 |
+| **Lambda/SQS** | Baixo uso | ~$0.00 |
+
+### Resumo
+
+| Categoria | Custo |
+|-----------|-------|
+| Networking (NAT) | $32.85 |
+| Compute (ECS + ALB) | $45.40 |
+| Database (RDS) | $12.41 |
+| CDN + Storage | $4.57 |
+| Monitoring | $3.40 |
+| **TOTAL** | **~$98/mês** |
+
+### 💡 Dicas de Otimização
+
+| Ação | Economia Potencial |
+|------|-------------------|
+| Desligar DEV à noite/fim de semana | ~40% (~$40/mês) |
+| Usar VPC Endpoints (remove NAT) | ~$32/mês |
+| RDS Free Tier (primeiro ano) | ~$12/mês |
+| ECS Fargate Spot | ~30% em ECS |
+
+> **Nota:** Custos baseados em preços da região `sa-east-1` (São Paulo) em Fev/2026.
+
+---
+
 ## 🔜 Próximos Passos: Configuração de Domínio
 
 ### Opção 1: Route53 (Recomendada)
