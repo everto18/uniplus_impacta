@@ -271,6 +271,24 @@ module "compute" {
       { name = "noite", schedule = "cron(0 22 ? * * *)", min_capacity = 1, max_capacity = 3 },
       # Fim de semana (mínimo)
       { name = "fim-semana", schedule = "cron(0 0 ? * SAT,SUN *)", min_capacity = 1, max_capacity = 2 }
+    ],
+
+    "sistema-academico" = [
+      # Período de Matrículas - Início de Semestre (Janeiro: dias 4-18, Julho: dias 1-18)
+      { name = "matriculas-jan-inicio", schedule = "cron(0 0 4 1 ? *)", min_capacity = 5, max_capacity = 15 },
+      { name = "matriculas-jan-fim", schedule = "cron(0 0 19 1 ? *)", min_capacity = 2, max_capacity = 5 },
+      { name = "matriculas-jul-inicio", schedule = "cron(0 0 1 7 ? *)", min_capacity = 5, max_capacity = 15 },
+      { name = "matriculas-jul-fim", schedule = "cron(0 0 19 7 ? *)", min_capacity = 2, max_capacity = 5 },
+
+      # Semana de Provas - Dias 7 e 28 de cada mês (picos)
+      { name = "provas-dia7", schedule = "cron(0 6 7 * ? *)", min_capacity = 4, max_capacity = 12 },
+      { name = "provas-dia7-fim", schedule = "cron(0 22 7 * ? *)", min_capacity = 2, max_capacity = 5 },
+      { name = "provas-dia28", schedule = "cron(0 6 28 * ? *)", min_capacity = 4, max_capacity = 12 },
+      { name = "provas-dia28-fim", schedule = "cron(0 22 28 * ? *)", min_capacity = 2, max_capacity = 5 },
+
+      # Horário normal (fora dos picos)
+      { name = "horario-comercial", schedule = "cron(0 8 ? * MON-FRI *)", min_capacity = 2, max_capacity = 6 },
+      { name = "noite", schedule = "cron(0 22 ? * * *)", min_capacity = 1, max_capacity = 3 }
     ]
   }
 
