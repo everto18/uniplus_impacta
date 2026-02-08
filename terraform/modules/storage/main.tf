@@ -45,18 +45,6 @@ resource "aws_s3_bucket_public_access_block" "assets" {
   restrict_public_buckets = true
 }
 
-resource "aws_s3_bucket_cors_configuration" "assets" {
-  bucket = aws_s3_bucket.assets.id
-
-  cors_rule {
-    allowed_headers = ["*"]
-    allowed_methods = ["GET", "HEAD"]
-    allowed_origins = var.allowed_origins
-    expose_headers  = ["ETag"]
-    max_age_seconds = 3600
-  }
-}
-
 #------------------------------------------------------------------------------
 # S3 Bucket - Raw Videos (Uploads from professors)
 #------------------------------------------------------------------------------
@@ -124,17 +112,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "raw_videos" {
   }
 }
 
-resource "aws_s3_bucket_cors_configuration" "raw_videos" {
-  bucket = aws_s3_bucket.raw_videos.id
-
-  cors_rule {
-    allowed_headers = ["*"]
-    allowed_methods = ["PUT", "POST"]
-    allowed_origins = var.allowed_origins
-    expose_headers  = ["ETag"]
-    max_age_seconds = 3600
-  }
-}
 
 #------------------------------------------------------------------------------
 # S3 Bucket - Processed Videos (HLS, MP4)
@@ -203,17 +180,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "processed_videos" {
   }
 }
 
-resource "aws_s3_bucket_cors_configuration" "processed_videos" {
-  bucket = aws_s3_bucket.processed_videos.id
-
-  cors_rule {
-    allowed_headers = ["*"]
-    allowed_methods = ["GET", "HEAD"]
-    allowed_origins = var.allowed_origins
-    expose_headers  = ["ETag", "Content-Length", "Content-Type"]
-    max_age_seconds = 86400
-  }
-}
 
 #------------------------------------------------------------------------------
 # S3 Bucket - User Uploads (documents, assignments)
@@ -252,16 +218,4 @@ resource "aws_s3_bucket_public_access_block" "uploads" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_cors_configuration" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
-
-  cors_rule {
-    allowed_headers = ["*"]
-    allowed_methods = ["GET", "PUT", "POST", "DELETE"]
-    allowed_origins = var.allowed_origins
-    expose_headers  = ["ETag"]
-    max_age_seconds = 3600
-  }
 }
