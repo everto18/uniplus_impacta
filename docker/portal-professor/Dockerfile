@@ -42,8 +42,12 @@ RUN mkdir -p /tmp/nginx/client_body \
     && mkdir -p /tmp/nginx/uwsgi \
     && mkdir -p /tmp/nginx/scgi \
     && mkdir -p /run/nginx \
+    && mkdir -p /var/lib/nginx/logs \
+    && mkdir -p /var/log/nginx \
     && chmod -R 777 /tmp/nginx \
     && chmod 777 /run/nginx \
+    && chown -R www-data:www-data /var/lib/nginx \
+    && chown -R www-data:www-data /var/log/nginx \
     && chown -R www-data:www-data /var/www/html \
     && chown -R www-data:www-data /var/log \
     && chown -R www-data:www-data /var/run \
