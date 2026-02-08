@@ -258,6 +258,22 @@ module "compute" {
 
   default_service = "portal-aluno"
 
+  # Scheduled Scaling - Time-based autoscaling for predictable demand
+  scheduled_scaling = {
+    "portal-aluno" = [
+      # Picos de manhã (dias úteis)
+      { name = "pico-manha", schedule = "cron(0 7 ? * MON-FRI *)", min_capacity = 3, max_capacity = 10 },
+      # Após pico da manhã
+      { name = "pos-manha", schedule = "cron(0 12 ? * MON-FRI *)", min_capacity = 2, max_capacity = 6 },
+      # Picos de tarde (dias úteis)
+      { name = "pico-tarde", schedule = "cron(0 18 ? * MON-FRI *)", min_capacity = 3, max_capacity = 10 },
+      # Noite (economia)
+      { name = "noite", schedule = "cron(0 22 ? * * *)", min_capacity = 1, max_capacity = 3 },
+      # Fim de semana (mínimo)
+      { name = "fim-semana", schedule = "cron(0 0 ? * SAT,SUN *)", min_capacity = 1, max_capacity = 2 }
+    ]
+  }
+
   tags = local.common_tags
 }
 

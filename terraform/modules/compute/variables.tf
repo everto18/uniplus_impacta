@@ -145,3 +145,18 @@ variable "default_service" {
   type        = string
   default     = "portal-aluno"
 }
+
+#------------------------------------------------------------------------------
+# Scheduled Scaling Configuration
+#------------------------------------------------------------------------------
+variable "scheduled_scaling" {
+  description = "Map of scheduled scaling actions per service"
+  type = map(list(object({
+    name         = string
+    schedule     = string # Cron expression (e.g., "cron(0 7 ? * MON-FRI *)")
+    min_capacity = number
+    max_capacity = number
+    timezone     = optional(string, "America/Sao_Paulo")
+  })))
+  default = {}
+}

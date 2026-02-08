@@ -382,3 +382,39 @@ resource "aws_appautoscaling_policy" "requests" {
     scale_out_cooldown = 60
   }
 }
+
+#------------------------------------------------------------------------------
+# Scheduled Scaling Actions (Time-based autoscaling)
+#------------------------------------------------------------------------------
+locals {
+  # Flatten scheduled scaling map into a list for for_each
+  scheduled_actions = flatten([
+    for service, schedules in var.scheduled_scaling : [
+      for schedule in schedules : {
+        key          = "${service}-${schedule.name}"
+        service      = service
+        name         = schedule.name
+        schedule     = schedule.schedule
+        min_capacity = schedule.min_capacity
+        max_capacity = schedule.max_capacity
+        timezone     = schedule.timezone
+      }
+    ]
+  ])
+}
+
+resource "aws_appautoscaling_scheduled_action" "services" {
+  for_each = { for item in local.scheduled_actions : item.key => item }
+
+  name               = "${local.name_prefix}-${each.value.service}-${each.value.name}"
+  service_namespace  = aws_appautoscaling_target.services[each.value.service].service_namespace
+  resource_id        = aws_appautoscaling_target.services[each.value.service].resource_id
+  scalable_dimension = aws_appautoscaling_target.services[each.value.service].scalable_dimension
+  schedule           = each.value.schedule
+  timezone           = each.value.timezone
+
+  scalable_target_action {
+    min_capacity = each.value.min_capacity
+    max_capacity = each.value.max_capacity
+  }
+}
