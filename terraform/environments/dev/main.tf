@@ -280,6 +280,11 @@ module "cdn" {
   processed_videos_bucket_id          = module.storage.processed_videos_bucket_id
   price_class                         = "PriceClass_100"
 
+  # Configuração de Domínio Personalizado (Opção 2)
+  # Para usar www.uniplus.com.br (Registro.br), descomente abaixo:
+  # aliases         = ["www.uniplus.com.br"]
+  # certificate_arn = "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/..."
+
   tags = local.common_tags
 }
 

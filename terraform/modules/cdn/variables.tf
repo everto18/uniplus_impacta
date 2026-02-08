@@ -41,10 +41,10 @@ variable "assets_bucket_id" {
   type        = string
 }
 
-variable "domain_name" {
-  description = "Custom domain name"
-  type        = string
-  default     = ""
+variable "aliases" {
+  description = "List of custom domain aliases (CNAMEs)"
+  type        = list(string)
+  default     = []
 }
 
 variable "certificate_arn" {
