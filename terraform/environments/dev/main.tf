@@ -200,7 +200,7 @@ module "compute" {
   # Services configuration - dev uses minimal resources
   services = {
     portal-aluno = {
-      container_image   = "${local.account_id}.dkr.ecr.${local.aws_region}.amazonaws.com/uniplus-portal-aluno:latest"
+      container_image   = "${local.account_id}.dkr.ecr.${local.aws_region}.amazonaws.com/uniplus-portal-aluno:dev"
       container_port    = 80
       cpu               = 256
       memory            = 512
@@ -213,7 +213,7 @@ module "compute" {
       environment_vars  = {}
     }
     portal-professor = {
-      container_image   = "${local.account_id}.dkr.ecr.${local.aws_region}.amazonaws.com/uniplus-portal-professor:latest"
+      container_image   = "${local.account_id}.dkr.ecr.${local.aws_region}.amazonaws.com/uniplus-portal-professor:dev"
       container_port    = 80
       cpu               = 256
       memory            = 512
@@ -226,7 +226,7 @@ module "compute" {
       environment_vars  = {}
     }
     sistema-academico = {
-      container_image   = "${local.account_id}.dkr.ecr.${local.aws_region}.amazonaws.com/uniplus-sistema-academico:latest"
+      container_image   = "${local.account_id}.dkr.ecr.${local.aws_region}.amazonaws.com/uniplus-sistema-academico:dev"
       container_port    = 80
       cpu               = 256
       memory            = 512
@@ -239,7 +239,7 @@ module "compute" {
       environment_vars  = {}
     }
     video-api = {
-      container_image   = "${local.account_id}.dkr.ecr.${local.aws_region}.amazonaws.com/uniplus-video-api:latest"
+      container_image   = "${local.account_id}.dkr.ecr.${local.aws_region}.amazonaws.com/uniplus-video-api:dev"
       container_port    = 3000
       cpu               = 256
       memory            = 512
