@@ -136,10 +136,10 @@ module "database" {
   db_name                 = local.db_name
   db_username             = local.db_username
   instance_class          = local.db_instance_class
-  allocated_storage       = 20
-  max_allocated_storage   = 50
-  multi_az                = false # Single AZ for dev
-  backup_retention_period = 7
+  allocated_storage       = 20 # Mínimo permitido
+  max_allocated_storage   = 20 # Sem autoscaling
+  multi_az                = false
+  backup_retention_period = 0 # Sem backup
   deletion_protection     = false
   skip_final_snapshot     = true
 
@@ -206,7 +206,7 @@ module "compute" {
       memory            = 512
       desired_count     = 1
       min_capacity      = 1
-      max_capacity      = 2
+      max_capacity      = 1 # Single task
       health_check_path = "/health"
       path_patterns     = ["/aluno/*", "/aluno"]
       priority          = 100
@@ -219,7 +219,7 @@ module "compute" {
       memory            = 512
       desired_count     = 1
       min_capacity      = 1
-      max_capacity      = 2
+      max_capacity      = 1 # Single task
       health_check_path = "/health"
       path_patterns     = ["/professor/*", "/professor"]
       priority          = 200
@@ -232,7 +232,7 @@ module "compute" {
       memory            = 512
       desired_count     = 1
       min_capacity      = 1
-      max_capacity      = 2
+      max_capacity      = 1 # Single task
       health_check_path = "/health"
       path_patterns     = ["/academico/*", "/academico"]
       priority          = 300
@@ -245,7 +245,7 @@ module "compute" {
       memory            = 512
       desired_count     = 1
       min_capacity      = 1
-      max_capacity      = 2
+      max_capacity      = 1 # Single task
       health_check_path = "/health"
       path_patterns     = ["/api/videos/*", "/api/videos"]
       priority          = 400
@@ -258,39 +258,9 @@ module "compute" {
 
   default_service = "portal-aluno"
 
-  # Scheduled Scaling - Time-based autoscaling for predictable demand
-  scheduled_scaling = {
-    "portal-aluno" = [
-      # Picos de manhã (dias úteis)
-      { name = "pico-manha", schedule = "cron(0 7 ? * MON-FRI *)", min_capacity = 3, max_capacity = 10 },
-      # Após pico da manhã
-      { name = "pos-manha", schedule = "cron(0 12 ? * MON-FRI *)", min_capacity = 2, max_capacity = 6 },
-      # Picos de tarde (dias úteis)
-      { name = "pico-tarde", schedule = "cron(0 18 ? * MON-FRI *)", min_capacity = 3, max_capacity = 10 },
-      # Noite (economia)
-      { name = "noite", schedule = "cron(0 22 ? * * *)", min_capacity = 1, max_capacity = 3 },
-      # Fim de semana (mínimo)
-      { name = "fim-semana", schedule = "cron(0 0 ? * SAT,SUN *)", min_capacity = 1, max_capacity = 2 }
-    ],
-
-    "sistema-academico" = [
-      # Período de Matrículas - Início de Semestre (Janeiro: dias 4-18, Julho: dias 1-18)
-      { name = "matriculas-jan-inicio", schedule = "cron(0 0 4 1 ? *)", min_capacity = 5, max_capacity = 15 },
-      { name = "matriculas-jan-fim", schedule = "cron(0 0 19 1 ? *)", min_capacity = 2, max_capacity = 5 },
-      { name = "matriculas-jul-inicio", schedule = "cron(0 0 1 7 ? *)", min_capacity = 5, max_capacity = 15 },
-      { name = "matriculas-jul-fim", schedule = "cron(0 0 19 7 ? *)", min_capacity = 2, max_capacity = 5 },
-
-      # Semana de Provas - Dias 7 e 28 de cada mês (picos)
-      { name = "provas-dia7", schedule = "cron(0 6 7 * ? *)", min_capacity = 4, max_capacity = 12 },
-      { name = "provas-dia7-fim", schedule = "cron(0 22 7 * ? *)", min_capacity = 2, max_capacity = 5 },
-      { name = "provas-dia28", schedule = "cron(0 6 28 * ? *)", min_capacity = 4, max_capacity = 12 },
-      { name = "provas-dia28-fim", schedule = "cron(0 22 28 * ? *)", min_capacity = 2, max_capacity = 5 },
-
-      # Horário normal (fora dos picos)
-      { name = "horario-comercial", schedule = "cron(0 8 ? * MON-FRI *)", min_capacity = 2, max_capacity = 6 },
-      { name = "noite", schedule = "cron(0 22 ? * * *)", min_capacity = 1, max_capacity = 3 }
-    ]
-  }
+  # Scheduled Scaling desabilitado - DEV usa task fixa
+  # Para produção, descomentar e ajustar conforme necessidade
+  # scheduled_scaling = { ... }
 
   tags = local.common_tags
 }
