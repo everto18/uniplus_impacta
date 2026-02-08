@@ -278,3 +278,18 @@ module "cdn" {
 
   tags = local.common_tags
 }
+
+#------------------------------------------------------------------------------
+# Monitoring Module (CloudWatch Dashboard)
+#------------------------------------------------------------------------------
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  project_name              = local.project_name
+  environment               = local.environment
+  aws_region                = local.aws_region
+  cluster_name              = module.compute.cluster_name
+  service_names             = module.compute.service_names
+  alb_arn_suffix            = module.compute.alb_arn_suffix
+  target_group_arn_suffixes = module.compute.target_group_arn_suffixes
+}

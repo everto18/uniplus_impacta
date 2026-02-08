@@ -59,6 +59,13 @@ output "target_group_arns" {
   }
 }
 
+output "target_group_arn_suffixes" {
+  description = "Map of target group ARN suffixes by service name"
+  value = {
+    for key, _ in var.services : key => aws_lb_target_group.services[key].arn_suffix
+  }
+}
+
 output "service_names" {
   description = "List of ECS service names"
   value       = [for key, _ in var.services : aws_ecs_service.services[key].name]
