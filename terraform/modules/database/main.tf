@@ -242,3 +242,26 @@ resource "aws_cloudwatch_metric_alarm" "connections_high" {
 
   tags = var.tags
 }
+
+#------------------------------------------------------------------------------
+# Cleanup RDS Log Groups on Destroy
+# RDS automatically creates these, but doesn't delete them
+#------------------------------------------------------------------------------
+resource "null_resource" "cleanup_rds_logs" {
+  triggers = {
+    db_identifier = aws_db_instance.main.identifier
+    region        = data.aws_region.current.name
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<-EOT
+      aws logs delete-log-group --log-group-name "/aws/rds/instance/${self.triggers.db_identifier}/error" --region ${self.triggers.region} 2>/dev/null || true
+      aws logs delete-log-group --log-group-name "/aws/rds/instance/${self.triggers.db_identifier}/slowquery" --region ${self.triggers.region} 2>/dev/null || true
+      aws logs delete-log-group --log-group-name "/aws/rds/instance/${self.triggers.db_identifier}/general" --region ${self.triggers.region} 2>/dev/null || true
+      echo "RDS log groups cleaned up"
+    EOT
+  }
+}
+
+data "aws_region" "current" {}
