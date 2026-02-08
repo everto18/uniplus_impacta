@@ -18,7 +18,7 @@ deploy_dev = true
 testes_integracao = true
 
 # Criação automática de PR para main
-create_pr = true
+create_pr = false
 
 [terraform]
 # Inicialização do Terraform
