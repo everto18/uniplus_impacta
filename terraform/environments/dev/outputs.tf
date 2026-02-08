@@ -85,3 +85,42 @@ output "video_notifications_topic_arn" {
   description = "SNS topic ARN for video notifications"
   value       = module.video_processing.video_notifications_topic_arn
 }
+
+#------------------------------------------------------------------------------
+# Access URLs (use these to access the application)
+#------------------------------------------------------------------------------
+output "app_url" {
+  description = "Main application URL via CloudFront"
+  value       = "https://${module.cdn.distribution_domain_name}"
+}
+
+output "portal_aluno_url" {
+  description = "Portal do Aluno URL"
+  value       = "https://${module.cdn.distribution_domain_name}/aluno"
+}
+
+output "portal_professor_url" {
+  description = "Portal do Professor URL"
+  value       = "https://${module.cdn.distribution_domain_name}/professor"
+}
+
+output "sistema_academico_url" {
+  description = "Sistema Acadêmico URL"
+  value       = "https://${module.cdn.distribution_domain_name}/academico"
+}
+
+output "video_api_url" {
+  description = "Video API URL"
+  value       = "https://${module.cdn.distribution_domain_name}/api/videos"
+}
+
+output "alb_direct_url" {
+  description = "Direct ALB URL (without CloudFront)"
+  value       = "http://${module.compute.alb_dns_name}"
+}
+
+# Monitoring
+output "cloudwatch_dashboard_url" {
+  description = "CloudWatch Dashboard URL"
+  value       = module.monitoring.dashboard_url
+}
