@@ -49,12 +49,27 @@ COPY docker/portal-aluno/supervisord.conf /etc/supervisor/conf.d/supervisord.con
 COPY docker/portal-aluno/php.ini /usr/local/etc/php/conf.d/custom.ini
 
 # Set permissions and prepare for non-root user
-RUN chown -R www-data:www-data /var/www/html \
+# Create all directories Nginx needs with proper permissions
+RUN mkdir -p /var/lib/nginx/tmp/client_body \
+    && mkdir -p /var/lib/nginx/tmp/proxy \
+    && mkdir -p /var/lib/nginx/tmp/fastcgi \
+    && mkdir -p /var/lib/nginx/tmp/uwsgi \
+    && mkdir -p /var/lib/nginx/tmp/scgi \
+    && mkdir -p /var/lib/nginx/logs \
+    && mkdir -p /var/log/nginx \
+    && mkdir -p /run/nginx \
+    && mkdir -p /var/tmp/nginx \
+    && chown -R www-data:www-data /var/lib/nginx \
+    && chown -R www-data:www-data /var/log/nginx \
+    && chown -R www-data:www-data /run/nginx \
+    && chown -R www-data:www-data /var/tmp/nginx \
+    && chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html/storage 2>/dev/null || true \
     && chmod -R 755 /var/www/html/bootstrap/cache 2>/dev/null || true \
     && chown -R www-data:www-data /var/log \
     && chown -R www-data:www-data /var/run \
-    && mkdir -p /run/nginx && chown www-data:www-data /run/nginx
+    && touch /var/run/supervisord.pid \
+    && chown www-data:www-data /var/run/supervisord.pid
 
 # Security: Run as non-root user
 USER www-data
