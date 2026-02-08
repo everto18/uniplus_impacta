@@ -12,9 +12,9 @@ from botocore.exceptions import ClientError
 class TestS3Buckets:
     """Test suite for S3 bucket configurations."""
 
-    def test_raw_videos_bucket_exists(self, s3_client, resource_prefix):
+    def test_raw_videos_bucket_exists(self, s3_client, bucket_prefix):
         """Verify raw videos bucket exists."""
-        bucket_name = f"{resource_prefix}-raw-videos"
+        bucket_name = f"{bucket_prefix}-raw-videos"
         
         try:
             response = s3_client.head_bucket(Bucket=bucket_name)
@@ -22,9 +22,9 @@ class TestS3Buckets:
         except ClientError as e:
             pytest.fail(f"Bucket {bucket_name} does not exist: {e}")
 
-    def test_processed_videos_bucket_exists(self, s3_client, resource_prefix):
+    def test_processed_videos_bucket_exists(self, s3_client, bucket_prefix):
         """Verify processed videos bucket exists."""
-        bucket_name = f"{resource_prefix}-processed-videos"
+        bucket_name = f"{bucket_prefix}-processed-videos"
         
         try:
             response = s3_client.head_bucket(Bucket=bucket_name)
@@ -32,9 +32,9 @@ class TestS3Buckets:
         except ClientError as e:
             pytest.fail(f"Bucket {bucket_name} does not exist: {e}")
 
-    def test_assets_bucket_exists(self, s3_client, resource_prefix):
+    def test_assets_bucket_exists(self, s3_client, bucket_prefix):
         """Verify assets bucket exists."""
-        bucket_name = f"{resource_prefix}-assets"
+        bucket_name = f"{bucket_prefix}-assets"
         
         try:
             response = s3_client.head_bucket(Bucket=bucket_name)
@@ -42,17 +42,17 @@ class TestS3Buckets:
         except ClientError as e:
             pytest.fail(f"Bucket {bucket_name} does not exist: {e}")
 
-    def test_raw_videos_bucket_versioning_enabled(self, s3_client, resource_prefix):
+    def test_raw_videos_bucket_versioning_enabled(self, s3_client, bucket_prefix):
         """Verify versioning is enabled on raw videos bucket."""
-        bucket_name = f"{resource_prefix}-raw-videos"
+        bucket_name = f"{bucket_prefix}-raw-videos"
         
         response = s3_client.get_bucket_versioning(Bucket=bucket_name)
         assert response.get('Status') == 'Enabled', \
             f"Versioning not enabled on {bucket_name}"
 
-    def test_raw_videos_bucket_encryption(self, s3_client, resource_prefix):
+    def test_raw_videos_bucket_encryption(self, s3_client, bucket_prefix):
         """Verify encryption is enabled on raw videos bucket."""
-        bucket_name = f"{resource_prefix}-raw-videos"
+        bucket_name = f"{bucket_prefix}-raw-videos"
         
         try:
             response = s3_client.get_bucket_encryption(Bucket=bucket_name)
@@ -68,12 +68,12 @@ class TestS3Buckets:
                 pytest.fail(f"Encryption not configured on {bucket_name}")
             raise
 
-    def test_buckets_block_public_access(self, s3_client, resource_prefix):
+    def test_buckets_block_public_access(self, s3_client, bucket_prefix):
         """Verify public access is blocked on all buckets."""
         buckets = [
-            f"{resource_prefix}-raw-videos",
-            f"{resource_prefix}-processed-videos",
-            f"{resource_prefix}-assets"
+            f"{bucket_prefix}-raw-videos",
+            f"{bucket_prefix}-processed-videos",
+            f"{bucket_prefix}-assets"
         ]
         
         for bucket_name in buckets:
@@ -92,9 +92,9 @@ class TestS3Buckets:
             except ClientError as e:
                 pytest.fail(f"Failed to get public access block for {bucket_name}: {e}")
 
-    def test_raw_videos_bucket_lifecycle_rules(self, s3_client, resource_prefix):
+    def test_raw_videos_bucket_lifecycle_rules(self, s3_client, bucket_prefix):
         """Verify lifecycle rules are configured for raw videos bucket."""
-        bucket_name = f"{resource_prefix}-raw-videos"
+        bucket_name = f"{bucket_prefix}-raw-videos"
         
         try:
             response = s3_client.get_bucket_lifecycle_configuration(Bucket=bucket_name)
@@ -106,9 +106,9 @@ class TestS3Buckets:
                 pytest.skip(f"No lifecycle configuration on {bucket_name}")
             raise
 
-    def test_raw_videos_eventbridge_notifications(self, s3_client, resource_prefix):
+    def test_raw_videos_eventbridge_notifications(self, s3_client, bucket_prefix):
         """Verify EventBridge notifications are enabled for raw videos bucket."""
-        bucket_name = f"{resource_prefix}-raw-videos"
+        bucket_name = f"{bucket_prefix}-raw-videos"
         
         response = s3_client.get_bucket_notification_configuration(Bucket=bucket_name)
         

@@ -48,6 +48,19 @@ def resource_prefix(project_name, environment):
 
 
 @pytest.fixture(scope="session")
+def aws_account_id():
+    """AWS Account ID fixture."""
+    sts = boto3.client('sts')
+    return sts.get_caller_identity()['Account']
+
+
+@pytest.fixture(scope="session")
+def bucket_prefix(project_name, aws_account_id, environment):
+    """S3 bucket naming prefix (includes account ID)."""
+    return f"{project_name}-{aws_account_id}-{environment}"
+
+
+@pytest.fixture(scope="session")
 def boto_config():
     """Boto3 configuration with retries."""
     return Config(
