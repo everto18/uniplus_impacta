@@ -3,48 +3,96 @@
 ## 📖 Sobre o Projeto
 UniPlus é uma plataforma de ensino moderna e escalável, projetada para suportar alta demanda de alunos e professores, oferecendo aulas gravadas, materiais didáticos e gestão acadêmica.
 
+---
+
 ## 🏗️ Arquitetura da Solução
 
 A infraestrutura foi desenhada seguindo os pilares do **AWS Well-Architected Framework**: Excelência Operacional, Segurança, Confiabilidade, Eficiência de Performance e Otimização de Custos.
+
+### Topologia de Rede
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                              INTERNET                                │
+└─────────────────────────────────────────────────────────────────────┘
+                                   │
+                                   ▼
+                         ┌─────────────────┐
+                         │   CloudFront    │  ← CDN Global (HTTPS)
+                         │  (*.cloudfront) │
+                         └────────┬────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                              VPC                                     │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │                    PUBLIC SUBNETS                              │  │
+│  │   ┌─────────────────────────────────────────────────────────┐ │  │
+│  │   │  Application Load Balancer (ALB)                        │ │  │
+│  │   │  - Recebe tráfego do CloudFront                         │ │  │
+│  │   │  - Roteia por path (/aluno, /professor, /academico...)  │ │  │
+│  │   └─────────────────────────────────────────────────────────┘ │  │
+│  │   ┌─────────────────────────────────────────────────────────┐ │  │
+│  │   │  NAT Gateway (saída para internet das tasks ECS)        │ │  │
+│  │   └─────────────────────────────────────────────────────────┘ │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+│                                  │                                   │
+│                                  ▼                                   │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │                   PRIVATE APP SUBNETS                          │  │
+│  │   ┌─────────────┐ ┌─────────────┐ ┌─────────────┐             │  │
+│  │   │ ECS Task    │ │ ECS Task    │ │ ECS Task    │ ...         │  │
+│  │   │ portal-aluno│ │ portal-prof │ │ sistema-acad│             │  │
+│  │   └─────────────┘ └─────────────┘ └─────────────┘             │  │
+│  │   ⚠️ SEM IP PÚBLICO - Acesso via ALB apenas                   │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+│                                  │                                   │
+│                                  ▼                                   │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │                   PRIVATE DATA SUBNETS                         │  │
+│  │   ┌─────────────────────────────────────────────────────────┐ │  │
+│  │   │  RDS MySQL (Banco de Dados)                             │ │  │
+│  │   └─────────────────────────────────────────────────────────┘ │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagrama de Fluxo (Mermaid)
 
 ```mermaid
 graph TD
     User((Usuário))
     CDN[CloudFront CDN]
-    WAF[AWS WAF]
     ALB[Application Load Balancer]
     
-    subgraph "VPC (Virtual Private Cloud)"
+    subgraph "VPC"
         subgraph "Public Subnets"
             NAT[NAT Gateway]
             ALB
         end
         
         subgraph "Private App Subnets"
-            ECS[Amazon ECS Fargate]
-            Sval[Portal Aluno]
-            Sprof[Portal Professor]
-            Sacad[Sistema Acadêmico]
-            Svideo[Video API]
+            PA[Portal Aluno]
+            PP[Portal Professor]
+            SA[Sistema Acadêmico]
+            VA[Video API]
         end
         
         subgraph "Private Data Subnets"
-            RDS[(Amazon RDS MySQL)]
-            ElastiCache[(ElastiCache Redis)]
+            RDS[(RDS MySQL)]
         end
     end
     
     S3_Raw[S3 Raw Videos]
     S3_Proc[S3 Processed Videos]
     Lambda[Lambda Processor]
-    MediaConvert[AWS MediaConvert]
+    MediaConvert[MediaConvert]
     
     User --> CDN
-    CDN --> WAF
-    WAF --> ALB
-    ALB --> ECS
+    CDN --> ALB
+    ALB --> PA & PP & SA & VA
     
-    Svideo --> S3_Raw
+    VA --> S3_Raw
     S3_Raw --> Lambda
     Lambda --> MediaConvert
     MediaConvert --> S3_Proc
@@ -53,127 +101,113 @@ graph TD
 
 ---
 
+## � Segurança de Rede
+
+| Componente | Localização | Acesso Público |
+|------------|-------------|----------------|
+| **ECS Tasks** | Private Subnets | ❌ Não |
+| **RDS MySQL** | Private Data Subnets | ❌ Não |
+| **ALB** | Public Subnets | ✅ Sim (via CloudFront) |
+| **NAT Gateway** | Public Subnets | ✅ Saída apenas |
+
+### Fluxo de Tráfego Permitido
+
+| Origem | Destino | Permitido |
+|--------|---------|-----------|
+| Internet → ECS | Direto | ❌ Bloqueado |
+| Internet → ALB | CloudFront | ✅ Permitido |
+| ALB → ECS | Security Group | ✅ Permitido |
+| ECS → RDS | Security Group | ✅ Permitido |
+| ECS → Internet | NAT Gateway | ✅ Permitido |
+
+---
+
+## ❓ Por que NÃO usamos API Gateway?
+
+| Funcionalidade | API Gateway | ALB + CloudFront |
+|----------------|-------------|------------------|
+| Roteamento por path | ✅ | ✅ |
+| HTTPS/TLS | ✅ | ✅ |
+| Cache de respostas | ✅ | ✅ |
+| WebSockets | ✅ | ✅ |
+| Rate Limiting nativo | ✅ | ⚠️ Via WAF |
+| Autenticação JWT nativa | ✅ | ❌ No código |
+| **Custo por milhão de req** | ~$3.50 | **~$0.008** |
+
+**Conclusão:** Para containers ECS, o ALB + CloudFront é mais econômico e suficiente. API Gateway seria necessário apenas para autenticação OAuth centralizada ou migração para Lambda.
+
+---
+
 ## 🚀 Serviços e Decisões de Arquitetura
 
 ### 1. Computação: Amazon ECS (Fargate)
-**Decisão:** Utilizamos ECS Fargate em vez de EC2 ou Kubernetes (EKS).
-- **Por que?** Remove a necessidade de gerenciar servidores (OS patching, scaling de cluster). Fargate permite focar apenas na definição da tarefa (container), ideal para times ágeis.
+- **Por que?** Remove a necessidade de gerenciar servidores. Fargate permite focar apenas no container.
 - **Microserviços:**
-  - `portal-aluno`: Interface principal dos estudantes.
-  - `portal-professor`: Interface de gestão de aulas e notas.
-  - `sistema-academico`: Core do negócio (matrículas, histórico).
-  - `video-api`: Upload e gestão de conteúdo.
+  - `portal-aluno`: Interface dos estudantes.
+  - `portal-professor`: Gestão de aulas e notas.
+  - `sistema-academico`: Matrículas e histórico.
+  - `video-api`: Upload de vídeos.
 
 ### 2. Banco de Dados: Amazon RDS (MySQL)
-**Decisão:** MySQL gerenciado via RDS.
-- **Por que?** Compatibilidade com legado, robustez e facilidade de gestão. O RDS automatiza backups, updates e (em prod) failover Multi-AZ.
+- **Por que?** Gestão automatizada de backups, updates e failover Multi-AZ (em produção).
 
-### 3. Armazenamento e CDN: S3 + CloudFront
-**Decisão:** Arquitetura de vídeo sob demanda (VOD) serverless.
-- **S3:** Armazenamento ilimitado e barato para vídeos brutos e processados.
-- **CloudFront:** Entrega conteúdo com baixa latência globalmente, reduzindo carga nos servidores e custo de data transfer (cache na borda).
+### 3. CDN: CloudFront + S3
+- **S3:** Armazenamento de vídeos.
+- **CloudFront:** Entrega global com baixa latência e HTTPS gratuito.
 
 ### 4. Processamento de Vídeo: Lambda + MediaConvert
-**Decisão:** Pipeline assíncrono orientado a eventos.
-- **Fluxo:** Upload -> S3 -> SQS -> Lambda -> MediaConvert.
-- **Por que?** Desacopla o processamento pesado (transcodificação) da API principal. O usuário não fica esperando o vídeo converter.
-
-### 5. Infraestrutura como Código (IaC): Terraform
-**Decisão:** Todo o ambiente é versionado com Terraform.
-- **Módulos:** Redes, Compute, Database, Storage, CDN configurados de forma reutilizável.
-- **Benefício:** Ambientes de Dev e Prod idênticos na arquitetura, mudando apenas a escala.
-
-### 6. Monitoramento: CloudWatch
-**Decisão:** Observabilidade nativa centralizada.
-- **Dashboards:** Métricas de negócio (latência, erros 5xx) e infra (CPU, RAM).
-- **Logs:** Centralizados no CloudWatch Logs para fácil debug.
+- **Fluxo:** Upload → S3 → SQS → Lambda → MediaConvert.
+- **Por que?** Processamento assíncrono, não bloqueia o usuário.
 
 ---
 
-## ⚙️ Estratégia de Autoscaling
+## ⚙️ Como Funciona o Autoscaling com ALB
 
-A plataforma utiliza uma estratégia híbrida de escalabilidade para lidar com a sazonalidade do setor educacional:
+Quando o ECS escala (cria nova Task), o processo é **automático**:
 
-1.  **Escalonamento Reativo (Target Tracking):**
-    - Aumenta tasks se CPU > 70% ou Memória > 80%.
-    - Garante resposta a picos inesperados.
+```
+1. ECS detecta alta de CPU/Memória
+         ▼
+2. Nova Task é criada
+         ▼
+3. ECS registra automaticamente no Target Group do ALB
+         ▼
+4. ALB faz Health Check (GET /health)
+         ▼
+5. Após 2-3 checks OK (~30s), Task recebe tráfego
+```
 
-2.  **Escalonamento Agendado (Scheduled Scaling):**
-    - **Pré-prova:** Aumenta capacidade 30 min antes dos horários de pico (07:00 e 18:00).
-    - **Matrículas:** Capacidade triplicada durante semanas de matrícula (Jan/Jul).
-    - **Economia Noturna:** Reduz ao mínimo (1 task) na madrugada.
+**Não há risco** de a nova Task não receber tráfego. O registro é automático.
 
 ---
 
-## 🛠️ Como Executar (Local & Deploy)
+## 🛠️ Como Executar
 
-### Pré-requisitos
-- Docker & Docker Compose
-- Terraform >= 1.5
-- AWS CLI configurado
-
-### Rodando Localmente
+### Localmente
 ```bash
 docker-compose up -d --build
 # Acessar em http://localhost:80
 ```
 
-### Deploy (Dev / Prod)
-O deploy é automatizado via **GitHub Actions**:
-1. Criação de infraestrutura (Terraform).
-2. Build e Push de imagens Docker (ECR).
-3. Atualização dos serviços ECS.
-
-Para acionar manualmente:
-1. Edite `.iupipes` (controle de pipeline).
-2. Commit na branch `main` (prod) ou `develop` (dev).
+### Deploy (GitHub Actions)
+1. Commit na branch `main` (prod) ou `develop` (dev).
+2. Pipeline executa: Terraform → Build Docker → Push ECR → Update ECS.
 
 ---
 
 ## 🔜 Próximos Passos: Configuração de Domínio
 
-Para configurar o seu domínio (ex: `uniplus.com.br`) adquirido no **Registro.br**, siga estes passos:
+### Opção 1: Route53 (Recomendada)
+- Mudar DNS do Registro.br para AWS.
+- Criar Alias `A` record apontando para CloudFront.
+- Permite usar domínio raiz (`uniplus.com.br`).
 
-### 1. Limitação Importante (CNAME na Raiz)
-O CloudFront utiliza um endereço do tipo `d1234.cloudfront.net`.
-- **Problema:** O Registro.br (e a maioria dos DNS legados) **não permite** criar um registro `CNAME` para o domínio raiz (ex: `uniplus.com.br`), apenas para subdomínios (ex: `www.uniplus.com.br`).
-- **Solução Recomendada:** Utilizar o **Amazon Route53** como DNS autoritativo.
+### Opção 2: Somente Registro.br
+- Usar subdomínio obrigatoriamente (`www.uniplus.com.br`).
+- Criar CNAME `www` → `dXXXX.cloudfront.net`.
+- Criar certificado no ACM (us-east-1) e validar via DNS.
 
-### 2. Configuração Ideal (Com Route53)
-1.  Crie uma **Hosted Zone** no Route53 para seu domínio.
-2.  Copie os 4 servidores NS (Name Servers) gerados pelo Route53.
-3.  No **Registro.br**, altere os servidores DNS do seu domínio para os 4 NS da AWS.
-4.  No Route53, crie um registro do tipo `A` (Alias) apontando para o CloudFront.
-    - Isso permite usar o domínio sem `www`.
-
-### 3. Configuração Alternativa (Sem Route53 - Apenas Registro.br)
-Se você não puder usar o Route53 agora, você **DEVE** usar um subdomínio (como `www` ou `app`).
-
-1.  No **AWS Certificate Manager (ACM)**:
-    - Solicite um certificado para `www.uniplus.com.br`.
-    - Copie o CNAME de validação DNS.
-2.  No **Registro.br (DNS)**:
-    - Crie o registro CNAME de validação do ACM.
-    - Aguarde o certificado ser emitido na AWS.
-3.  No **CloudFront**:
-    - Adicione `www.uniplus.com.br` em "Alternate Domain Names (CNAMEs)".
-    - Selecione o certificado ACM criado.
-4.  No **Registro.br (DNS)**:
-    - Crie um novo registro:
-        - **Entrada:** `www`
-        - **Tipo:** `CNAME`
-        - **Valor:** `d12345.cloudfront.net` (URL do seu CloudFront).
-
-> **Nota:** Nesta configuração alternativa, o usuário **precisa** digitar `www` para acessar. O domínio raiz não funcionará.
-
----
-
-## 🔒 Segurança
-
-- **WAF:** Proteção contra SQL Injection e XSS.
-- **Security Groups:** Princípio do privilégio mínimo (apenas ALB fala com ECS na porta da aplicação).
-- **Private Subnets:** Bancos e aplicações não têm IP público. Acesso externo apenas via Load Balancer.
-- **KMS / Secrets Manager:** Credenciais de banco encriptadas e rotacionadas.
+> **Nota:** CloudFront já oferece HTTPS gratuito para `*.cloudfront.net`. Certificado ACM só é necessário para domínio próprio.
 
 ---
 
