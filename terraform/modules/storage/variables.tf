@@ -32,3 +32,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "allowed_origins" {
+  description = "Allowed origins for CORS (e.g., CloudFront domain)"
+  type        = list(string)
+  default     = ["*"] # Will be overridden with CloudFront URL
+}

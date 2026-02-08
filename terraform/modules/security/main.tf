@@ -230,7 +230,12 @@ resource "aws_iam_role_policy" "ecs_task_execution_secrets" {
         Action = [
           "kms:Decrypt"
         ]
-        Resource = "*"
+        Resource = "arn:aws:kms:*:*:key/*"
+        Condition = {
+          StringEquals = {
+            "kms:ViaService" = "secretsmanager.*.amazonaws.com"
+          }
+        }
       }
     ]
   })

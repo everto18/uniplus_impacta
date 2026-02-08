@@ -51,7 +51,7 @@ resource "aws_s3_bucket_cors_configuration" "assets" {
   cors_rule {
     allowed_headers = ["*"]
     allowed_methods = ["GET", "HEAD"]
-    allowed_origins = ["*"]
+    allowed_origins = var.allowed_origins
     expose_headers  = ["ETag"]
     max_age_seconds = 3600
   }
@@ -130,7 +130,7 @@ resource "aws_s3_bucket_cors_configuration" "raw_videos" {
   cors_rule {
     allowed_headers = ["*"]
     allowed_methods = ["PUT", "POST"]
-    allowed_origins = ["*"]
+    allowed_origins = var.allowed_origins
     expose_headers  = ["ETag"]
     max_age_seconds = 3600
   }
@@ -209,7 +209,7 @@ resource "aws_s3_bucket_cors_configuration" "processed_videos" {
   cors_rule {
     allowed_headers = ["*"]
     allowed_methods = ["GET", "HEAD"]
-    allowed_origins = ["*"]
+    allowed_origins = var.allowed_origins
     expose_headers  = ["ETag", "Content-Length", "Content-Type"]
     max_age_seconds = 86400
   }
@@ -260,7 +260,7 @@ resource "aws_s3_bucket_cors_configuration" "uploads" {
   cors_rule {
     allowed_headers = ["*"]
     allowed_methods = ["GET", "PUT", "POST", "DELETE"]
-    allowed_origins = ["*"]
+    allowed_origins = var.allowed_origins
     expose_headers  = ["ETag"]
     max_age_seconds = 3600
   }

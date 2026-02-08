@@ -48,10 +48,16 @@ COPY docker/portal-aluno/nginx.conf /etc/nginx/http.d/default.conf
 COPY docker/portal-aluno/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/portal-aluno/php.ini /usr/local/etc/php/conf.d/custom.ini
 
-# Set permissions
+# Set permissions and prepare for non-root user
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html/storage 2>/dev/null || true \
-    && chmod -R 755 /var/www/html/bootstrap/cache 2>/dev/null || true
+    && chmod -R 755 /var/www/html/bootstrap/cache 2>/dev/null || true \
+    && chown -R www-data:www-data /var/log \
+    && chown -R www-data:www-data /var/run \
+    && mkdir -p /run/nginx && chown www-data:www-data /run/nginx
+
+# Security: Run as non-root user
+USER www-data
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \

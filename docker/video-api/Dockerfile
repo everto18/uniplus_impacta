@@ -63,8 +63,14 @@ command=/usr/sbin/nginx -g "daemon off;" \n\
 autostart=true \n\
 autorestart=true' > /etc/supervisor/conf.d/supervisord.conf
 
-# Set permissions
-RUN chown -R www-data:www-data /var/www/html
+# Set permissions and create non-root user
+RUN chown -R www-data:www-data /var/www/html \
+    && chown -R www-data:www-data /var/log \
+    && chown -R www-data:www-data /var/run \
+    && mkdir -p /run/nginx && chown www-data:www-data /run/nginx
+
+# Security: Run as non-root user
+USER www-data
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \

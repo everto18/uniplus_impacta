@@ -33,8 +33,14 @@ COPY docker/portal-professor/nginx.conf /etc/nginx/http.d/default.conf
 COPY docker/portal-professor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/portal-professor/php.ini /usr/local/etc/php/conf.d/custom.ini
 
-# Set permissions
-RUN chown -R www-data:www-data /var/www/html
+# Set permissions and prepare for non-root user
+RUN chown -R www-data:www-data /var/www/html \
+    && chown -R www-data:www-data /var/log \
+    && chown -R www-data:www-data /var/run \
+    && mkdir -p /run/nginx && chown www-data:www-data /run/nginx
+
+# Security: Run as non-root user
+USER www-data
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
