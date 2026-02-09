@@ -5,6 +5,9 @@
 # Testes unitários dos serviços
 testes_unitarios = true
 
+# Análise de qualidade SonarQube
+sonarqube = true
+
 # Build de imagens Docker (pre-build sem push)
 docker_build = true
 

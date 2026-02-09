@@ -228,36 +228,238 @@ $disciplinas = [
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         const uploadQueue = document.getElementById('uploadQueue');
+        const uploadForm = document.getElementById('uploadForm');
 
+        // Video API base URL (same ALB, different path)
+        const VIDEO_API_URL = '/api/videos';
+
+        // Max file size: 5GB
+        const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024;
+        const ALLOWED_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'];
+
+        let selectedFile = null;
+        let isUploading = false;
+
+        // Drag & Drop
         uploadArea.addEventListener('click', () => fileInput.click());
-        
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadArea.classList.add('dragover');
         });
-
         uploadArea.addEventListener('dragleave', () => {
             uploadArea.classList.remove('dragover');
         });
-
         uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadArea.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length) {
-                handleFiles(files);
+            if (e.dataTransfer.files.length) {
+                handleFileSelect(e.dataTransfer.files[0]);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFileSelect(e.target.files[0]);
             }
         });
 
-        fileInput.addEventListener('change', (e) => {
-            handleFiles(e.target.files);
+        function handleFileSelect(file) {
+            // Validate type
+            if (!ALLOWED_TYPES.includes(file.type) && !file.name.match(/\.(mp4|mov|avi|mkv)$/i)) {
+                showNotification('❌ Formato não suportado. Use: MP4, MOV, AVI, MKV', 'error');
+                return;
+            }
+            // Validate size
+            if (file.size > MAX_FILE_SIZE) {
+                showNotification('❌ Arquivo muito grande. Máximo: 5GB', 'error');
+                return;
+            }
+
+            selectedFile = file;
+            showFileInQueue(file);
+        }
+
+        function showFileInQueue(file) {
+            const sizeFormatted = formatFileSize(file.size);
+            uploadQueue.style.display = 'block';
+            uploadQueue.innerHTML = `
+                <h4 style="margin-bottom: 1rem;">Arquivo Selecionado</h4>
+                <div class="file-item" id="fileItem">
+                    <div class="file-icon video"><i class="fas fa-video"></i></div>
+                    <div style="flex: 1;">
+                        <p style="font-weight: 500;">${file.name}</p>
+                        <p id="uploadStatus" style="font-size: 0.85rem; color: rgba(255,255,255,0.5);">${sizeFormatted} • Pronto para enviar</p>
+                        <div class="file-progress">
+                            <div class="file-progress-bar" id="progressBar" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                    <button class="btn btn-secondary" style="padding: 8px;" onclick="removeFile()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+        }
+
+        function removeFile() {
+            if (isUploading) return;
+            selectedFile = null;
+            uploadQueue.style.display = 'none';
+            fileInput.value = '';
+        }
+
+        // Form submit = start upload
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!selectedFile) {
+                showNotification('⚠️ Selecione um vídeo primeiro', 'warning');
+                return;
+            }
+            if (isUploading) return;
+
+            const title = uploadForm.querySelector('input[type="text"]').value;
+            const discipline = uploadForm.querySelector('select[required]').value;
+            const turma = uploadForm.querySelectorAll('select[required]')[1]?.value || '';
+
+            await startUpload(selectedFile, title, discipline, turma);
         });
 
-        function handleFiles(files) {
-            uploadQueue.style.display = 'block';
-            // Simulate upload progress
-            console.log('Files selected:', files);
+        async function startUpload(file, title, discipline, turma) {
+            isUploading = true;
+            const progressBar = document.getElementById('progressBar');
+            const uploadStatus = document.getElementById('uploadStatus');
+            const submitBtn = uploadForm.querySelector('button[type="submit"]');
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+
+            try {
+                // Step 1: Get presigned URL from Video API
+                uploadStatus.textContent = 'Obtendo URL de upload...';
+                progressBar.style.width = '2%';
+
+                const contentType = file.type || 'video/mp4';
+                const response = await fetch(`${VIDEO_API_URL}/upload`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filename: file.name,
+                        content_type: contentType,
+                        title: title,
+                        discipline: discipline,
+                        turma: turma,
+                    }),
+                });
+
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.error || 'Falha ao obter URL de upload');
+                }
+
+                const { upload_url, video_id, headers } = result.data;
+
+                // Step 2: Upload file directly to S3 via presigned URL
+                uploadStatus.textContent = 'Enviando vídeo para o servidor...';
+
+                await uploadToS3(file, upload_url, contentType, headers, (progress) => {
+                    progressBar.style.width = `${progress}%`;
+                    uploadStatus.textContent = `${formatFileSize(file.size)} • ${Math.round(progress)}% enviado`;
+                });
+
+                // Step 3: Success!
+                progressBar.style.width = '100%';
+                progressBar.style.background = 'var(--success, #10b981)';
+                uploadStatus.innerHTML = `
+                    ✅ Upload concluído! ID: <strong>${video_id}</strong><br>
+                    <small style="color: rgba(255,255,255,0.5);">O vídeo será processado automaticamente (HLS + MP4 + Thumbnails)</small>
+                `;
+
+                showNotification('✅ Vídeo enviado com sucesso! O processamento será iniciado automaticamente.', 'success');
+
+                // Reset form
+                uploadForm.reset();
+                selectedFile = null;
+                fileInput.value = '';
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                progressBar.style.width = '100%';
+                progressBar.style.background = 'var(--danger, #ef4444)';
+                uploadStatus.textContent = `❌ Erro: ${error.message}`;
+                showNotification(`❌ Erro no upload: ${error.message}`, 'error');
+            } finally {
+                isUploading = false;
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-upload"></i> Iniciar Upload';
+            }
+        }
+
+        function uploadToS3(file, presignedUrl, contentType, headers, onProgress) {
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percent = (e.loaded / e.total) * 100;
+                        onProgress(percent);
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve();
+                    } else {
+                        reject(new Error(`Upload falhou (HTTP ${xhr.status})`));
+                    }
+                });
+
+                xhr.addEventListener('error', () => reject(new Error('Erro de rede durante upload')));
+                xhr.addEventListener('abort', () => reject(new Error('Upload cancelado')));
+
+                xhr.open('PUT', presignedUrl);
+                xhr.setRequestHeader('Content-Type', contentType);
+
+                // Set custom metadata headers if provided
+                if (headers) {
+                    Object.entries(headers).forEach(([key, value]) => {
+                        if (key.startsWith('x-amz-meta-')) {
+                            xhr.setRequestHeader(key, value);
+                        }
+                    });
+                }
+
+                xhr.send(file);
+            });
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(1) + ' GB';
+            if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+            if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return bytes + ' bytes';
+        }
+
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed; top: 80px; right: 20px; z-index: 9999;
+                padding: 16px 24px; border-radius: 12px; font-weight: 500;
+                color: white; max-width: 400px; font-size: 0.95rem;
+                animation: slideIn 0.3s ease-out;
+                background: ${type === 'success' ? 'rgba(16,185,129,0.95)' : type === 'error' ? 'rgba(239,68,68,0.95)' : 'rgba(245,158,11,0.95)'};
+                backdrop-filter: blur(10px);
+                box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => {
+                notification.style.animation = 'fadeOut 0.3s ease-in forwards';
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
         }
     </script>
+    <style>
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeOut { to { opacity: 0; transform: translateY(-10px); } }
+    </style>
 </body>
 </html>

@@ -1,0 +1,13 @@
+{
+    "name": "uniplus/video-api",
+    "description": "UniPlus Video API - S3 Upload & Video Processing",
+    "require": {
+        "php": "^8.3",
+        "aws/aws-sdk-php": "^3.300"
+    },
+    "autoload": {
+        "psr-4": {
+            "UniPlus\\": "src/"
+        }
+    }
+}

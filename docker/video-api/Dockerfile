@@ -1,5 +1,5 @@
 # UniPlus - Video API
-# PHP API container
+# PHP API container with AWS SDK for S3 presigned uploads
 
 FROM php:8.3-fpm-alpine
 
@@ -11,6 +11,8 @@ RUN apk add --no-cache \
     libpng-dev \
     libzip-dev \
     oniguruma-dev \
+    git \
+    unzip \
     && mkdir -p /etc/supervisor/conf.d
 
 # Install PHP extensions (json is built-in since PHP 8.0)
@@ -19,8 +21,15 @@ RUN docker-php-ext-install -j$(nproc) \
     zip \
     opcache
 
+# Install Composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
 # Set working directory
 WORKDIR /var/www/html
+
+# Copy composer files and install dependencies
+COPY docker/video-api/composer.json /var/www/html/
+RUN composer install --no-dev --optimize-autoloader --no-interaction
 
 # Copy application files
 COPY docker/video-api/src/ /var/www/html/public/

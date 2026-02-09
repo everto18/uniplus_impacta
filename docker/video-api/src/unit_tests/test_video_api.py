@@ -42,18 +42,18 @@ class TestVideoApiIndexContent:
 
     def test_has_video_list_endpoint(self, index_content):
         """Test that API has video list endpoint."""
-        assert '$videos' in index_content
+        assert 'listProcessedVideos' in index_content or 'videos' in index_content.lower()
         assert 'GET' in index_content
 
-    def test_has_video_mock_data(self, index_content):
-        """Test that API has mock video data."""
-        assert 'title' in index_content
-        assert 'duration' in index_content
-        assert 'thumbnail' in index_content
+    def test_has_aws_sdk_integration(self, index_content):
+        """Test that API uses AWS SDK for real S3 integration."""
+        assert 'S3Client' in index_content
+        assert 'createPresignedRequest' in index_content
+        assert 'RAW_BUCKET' in index_content
 
     def test_has_upload_endpoint(self, index_content):
         """Test that API has upload endpoint."""
-        assert 'upload' in index_content.lower()
+        assert 'handleUpload' in index_content
         assert 'POST' in index_content
 
     def test_has_presigned_url_generation(self, index_content):
@@ -65,10 +65,10 @@ class TestVideoApiIndexContent:
         assert 'status' in index_content.lower()
         assert 'processing' in index_content.lower()
 
-    def test_has_pagination(self, index_content):
-        """Test that API supports pagination."""
-        assert 'page' in index_content.lower()
-        assert 'limit' in index_content.lower()
+    def test_has_file_validation(self, index_content):
+        """Test that API validates file extensions."""
+        assert 'allowedExtensions' in index_content or 'mp4' in index_content
+        assert 'mov' in index_content
 
     def test_has_hls_url(self, index_content):
         """Test that API returns HLS streaming URLs."""
