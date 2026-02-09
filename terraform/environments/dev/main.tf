@@ -210,7 +210,9 @@ module "compute" {
       health_check_path = "/health"
       path_patterns     = ["/aluno/*", "/aluno"]
       priority          = 100
-      environment_vars  = {}
+      environment_vars = {
+        APP_BASE_PATH = "/aluno"
+      }
     }
     portal-professor = {
       container_image   = "${local.account_id}.dkr.ecr.${local.aws_region}.amazonaws.com/uniplus-portal-professor:dev"
@@ -223,7 +225,9 @@ module "compute" {
       health_check_path = "/health"
       path_patterns     = ["/professor/*", "/professor"]
       priority          = 200
-      environment_vars  = {}
+      environment_vars = {
+        APP_BASE_PATH = "/professor"
+      }
     }
     sistema-academico = {
       container_image   = "${local.account_id}.dkr.ecr.${local.aws_region}.amazonaws.com/uniplus-sistema-academico:dev"
@@ -236,7 +240,9 @@ module "compute" {
       health_check_path = "/health"
       path_patterns     = ["/academico/*", "/academico"]
       priority          = 300
-      environment_vars  = {}
+      environment_vars = {
+        APP_BASE_PATH = "/academico"
+      }
     }
     video-api = {
       container_image   = "${local.account_id}.dkr.ecr.${local.aws_region}.amazonaws.com/uniplus-video-api:dev"

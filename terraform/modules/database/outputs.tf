@@ -34,6 +34,10 @@ output "db_username" {
 output "db_credentials_secret_arn" {
   description = "ARN of the Secrets Manager secret containing DB credentials"
   value       = aws_secretsmanager_secret.db_credentials.arn
+
+  # Ensure the secret version (with actual values) is created before exposing the ARN
+  # This prevents ECS from trying to read an empty secret on first deploy
+  depends_on = [aws_secretsmanager_secret_version.db_credentials]
 }
 
 output "db_credentials_secret_name" {
