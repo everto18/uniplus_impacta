@@ -31,7 +31,7 @@ plan = true
 apply = false
 
 # Destruir infraestrutura
-destroy = true
+destroy = false
 
 [notifications]
 # Notificações Slack

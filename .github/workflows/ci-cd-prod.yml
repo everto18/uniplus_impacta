@@ -1,0 +1,434 @@
+name: CI/CD Pipeline - Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip tests'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  AWS_REGION: 'sa-east-1'
+  TF_VERSION: '1.10.0'
+  PYTHON_VERSION: '3.12'
+
+permissions:
+  id-token: write
+  contents: write
+  pull-requests: write
+  security-events: write
+
+# Evita execuções paralelas - NÃO cancela deployments em andamento
+concurrency:
+  group: ci-cd-prod-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ============================================
+  # STAGE 0: Read Pipeline Configuration
+  # ============================================
+  config:
+    name: Read Config
+    runs-on: ubuntu-latest
+    outputs:
+      docker_build: ${{ steps.config.outputs.docker_build }}
+      security_scan: ${{ steps.config.outputs.security_scan }}
+      tf_apply: ${{ steps.config.outputs.tf_apply }}
+      slack: ${{ steps.config.outputs.slack }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse .iupipes config
+        id: config
+        run: |
+          if [ -f ".iupipes" ]; then
+            echo "📄 Reading .iupipes configuration..."
+            
+            get_config() {
+              grep -E "^$1\s*=" .iupipes | sed 's/.*=\s*//' | tr -d ' ' | tr '[:upper:]' '[:lower:]'
+            }
+            
+            echo "docker_build=$(get_config 'docker_build')" >> $GITHUB_OUTPUT
+            echo "security_scan=$(get_config 'security_scan')" >> $GITHUB_OUTPUT
+            echo "tf_apply=$(get_config 'apply')" >> $GITHUB_OUTPUT
+            echo "slack=$(get_config 'slack')" >> $GITHUB_OUTPUT
+            
+            echo "## 📋 Pipeline Configuration (Prod)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "docker_build=true" >> $GITHUB_OUTPUT
+            echo "security_scan=true" >> $GITHUB_OUTPUT
+            echo "tf_apply=true" >> $GITHUB_OUTPUT
+            echo "slack=true" >> $GITHUB_OUTPUT
+          fi
+
+  # ============================================
+  # STAGE 1: Docker Pre-Build (Test Build)
+  # ============================================
+  docker-prebuild:
+    name: Docker Pre-Build
+    runs-on: ubuntu-latest
+    needs: config
+    if: needs.config.outputs.docker_build == 'true'
+    strategy:
+      matrix:
+        service:
+          - portal-aluno
+          - portal-professor
+          - sistema-academico
+          - video-api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Check if Dockerfile exists
+        id: check-dockerfile
+        run: |
+          if [ -f "docker/${{ matrix.service }}/Dockerfile" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Docker Image (Test)
+        if: steps.check-dockerfile.outputs.exists == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/${{ matrix.service }}/Dockerfile
+          push: false
+          tags: uniplus-${{ matrix.service }}:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  # ============================================
+  # STAGE 2: Security Scan
+  # ============================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: docker-prebuild
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/dockerfile
+          auditOn: push
+        continue-on-error: true
+
+      - name: Run Trivy Config Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'docker/'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '0'
+        continue-on-error: true
+
+  # ============================================
+  # STAGE 3: Deploy to Production
+  # ============================================
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [config, docker-prebuild, security-scan]
+    environment:
+      name: production
+      url: https://app.uniplus.com
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Environment Variables
+        run: |
+          echo "ENVIRONMENT=prod" >> $GITHUB_ENV
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Get Previous Deployment Tag
+        id: previous-tag
+        run: |
+          PREVIOUS_TAG=$(aws ecr describe-images \
+            --repository-name uniplus-portal-aluno \
+            --query 'sort_by(imageDetails,& imagePushedAt)[-2].imageTags[0]' \
+            --output text 2>/dev/null || echo "none")
+          echo "previous_tag=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+          echo "📦 Previous deployment tag: $PREVIOUS_TAG" >> $GITHUB_STEP_SUMMARY
+
+      - name: Build and Push Images (Prod)
+        id: build-push
+        run: |
+          for service in portal-aluno portal-professor sistema-academico video-api; do
+            if [ -f "docker/$service/Dockerfile" ]; then
+              echo "Building and pushing $service..."
+              docker build -t ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:${{ github.sha }} \
+                           -t ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:latest \
+                           -f docker/$service/Dockerfile .
+              docker push ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:${{ github.sha }}
+              docker push ${{ steps.login-ecr.outputs.registry }}/uniplus-$service:latest
+            fi
+          done
+          echo "new_tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: terraform/environments/prod
+
+      - name: Fetch Config from SSM
+        id: ssm-config
+        run: |
+          ACM_CERT=$(aws ssm get-parameter --name "/uniplus/prod/acm-cert-arn" --query "Parameter.Value" --output text 2>/dev/null || echo "")
+          ACM_CF_CERT=$(aws ssm get-parameter --name "/uniplus/prod/acm-cf-cert-arn" --query "Parameter.Value" --output text 2>/dev/null || echo "")
+          DOMAIN=$(aws ssm get-parameter --name "/uniplus/prod/domain-name" --query "Parameter.Value" --output text 2>/dev/null || echo "app.uniplus.com")
+          
+          echo "acm_cert_arn=$ACM_CERT" >> $GITHUB_OUTPUT
+          echo "acm_cf_cert_arn=$ACM_CF_CERT" >> $GITHUB_OUTPUT
+          echo "domain_name=$DOMAIN" >> $GITHUB_OUTPUT
+          echo "📦 Config loaded from SSM Parameter Store" >> $GITHUB_STEP_SUMMARY
+
+      - name: Terraform Plan
+        run: |
+          terraform plan -no-color -input=false -out=tfplan \
+            -var="container_image=${{ steps.login-ecr.outputs.registry }}/uniplus-portal-aluno:${{ github.sha }}" \
+            -var="certificate_arn=${{ steps.ssm-config.outputs.acm_cert_arn }}" \
+            -var="cloudfront_certificate_arn=${{ steps.ssm-config.outputs.acm_cf_cert_arn }}" \
+            -var="domain_name=${{ steps.ssm-config.outputs.domain_name }}"
+        working-directory: terraform/environments/prod
+
+      - name: Terraform Apply
+        id: apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: terraform/environments/prod
+
+      - name: Wait for Deployment Stabilization
+        run: |
+          echo "⏳ Waiting 60 seconds for deployment to stabilize..."
+          sleep 60
+
+      - name: Health Check - Application
+        id: health-check
+        run: |
+          set +e
+          echo "## 🏥 Health Check Results" >> $GITHUB_STEP_SUMMARY
+          
+          HEALTH_ENDPOINTS=(
+            "https://app.uniplus.com/health"
+            "https://app.uniplus.com/api/health"
+          )
+          
+          ALL_HEALTHY=true
+          MAX_RETRIES=5
+          RETRY_DELAY=15
+          
+          for endpoint in "${HEALTH_ENDPOINTS[@]}"; do
+            echo "Checking: $endpoint"
+            
+            for i in $(seq 1 $MAX_RETRIES); do
+              RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 --max-time 30 "$endpoint" 2>/dev/null)
+              
+              if [ "$RESPONSE" = "200" ]; then
+                echo "✅ $endpoint - HTTP $RESPONSE" >> $GITHUB_STEP_SUMMARY
+                break
+              fi
+              
+              if [ $i -eq $MAX_RETRIES ]; then
+                echo "❌ $endpoint - HTTP $RESPONSE (after $MAX_RETRIES retries)" >> $GITHUB_STEP_SUMMARY
+                ALL_HEALTHY=false
+              else
+                echo "Retry $i/$MAX_RETRIES for $endpoint..."
+                sleep $RETRY_DELAY
+              fi
+            done
+          done
+          
+          if [ "$ALL_HEALTHY" = "true" ]; then
+            echo "healthy=true" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **All health checks passed!**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "healthy=false" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🚨 **Health checks failed - Rollback required!**" >> $GITHUB_STEP_SUMMARY
+          fi
+        continue-on-error: true
+
+      - name: Automatic Rollback
+        if: steps.health-check.outputs.healthy == 'false' && steps.previous-tag.outputs.previous_tag != 'none'
+        run: |
+          echo "## 🔄 AUTOMATIC ROLLBACK INITIATED" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Failed Version:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Rolling back to:** ${{ steps.previous-tag.outputs.previous_tag }}" >> $GITHUB_STEP_SUMMARY
+          
+          PREVIOUS_TAG="${{ steps.previous-tag.outputs.previous_tag }}"
+          ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          
+          for service in portal-aluno portal-professor sistema-academico video-api; do
+            echo "Rolling back $service to $PREVIOUS_TAG..."
+            docker pull $ECR_REGISTRY/uniplus-$service:$PREVIOUS_TAG || true
+            docker tag $ECR_REGISTRY/uniplus-$service:$PREVIOUS_TAG $ECR_REGISTRY/uniplus-$service:latest
+            docker push $ECR_REGISTRY/uniplus-$service:latest
+          done
+          
+          cd terraform/environments/prod
+          terraform plan -no-color -input=false -out=rollback-tfplan \
+            -var="container_image=$ECR_REGISTRY/uniplus-portal-aluno:$PREVIOUS_TAG" \
+            -var="certificate_arn=${{ secrets.ACM_CERT_ARN }}" \
+            -var="cloudfront_certificate_arn=${{ secrets.ACM_CF_CERT_ARN }}" \
+            -var="domain_name=${{ secrets.DOMAIN_NAME }}"
+          
+          terraform apply -auto-approve rollback-tfplan
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Rollback completed successfully!**" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify Rollback on Slack
+        if: steps.health-check.outputs.healthy == 'false'
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: |
+            🚨 *AUTOMATIC ROLLBACK EXECUTED*
+            - Failed Commit: ${{ github.sha }}
+            - Rolled back to: ${{ steps.previous-tag.outputs.previous_tag }}
+            - Actor: ${{ github.actor }}
+            - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        continue-on-error: true
+
+      - name: Fail Pipeline on Rollback
+        if: steps.health-check.outputs.healthy == 'false'
+        run: |
+          echo "❌ Deployment failed health checks - Rollback was executed"
+          exit 1
+
+      - name: Deploy Summary
+        if: steps.health-check.outputs.healthy == 'true'
+        run: |
+          echo "## 🎉 Production Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ env.SHORT_SHA }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** Production" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** https://app.uniplus.com" >> $GITHUB_STEP_SUMMARY
+          echo "- **Health Status:** ✅ All checks passed" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on Slack (Success)
+        if: success() && steps.health-check.outputs.healthy == 'true'
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: |
+            ✅ *Production deployment successful!*
+            - Commit: ${{ github.sha }}
+            - Actor: ${{ github.actor }}
+            - Health Checks: All passed
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        continue-on-error: true
+
+      - name: Notify on Slack (Failure)
+        if: failure()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: |
+            ❌ *Production deployment FAILED!*
+            - Commit: ${{ github.sha }}
+            - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        continue-on-error: true
+
+  # ============================================
+  # STAGE 4: Infrastructure Tests (Post-Deploy)
+  # ============================================
+  infrastructure-tests-prod:
+    name: Infrastructure Tests (Production)
+    runs-on: ubuntu-latest
+    needs: deploy-prod
+    if: success()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Run Infrastructure Tests (Production)
+        env:
+          ENVIRONMENT: prod
+          PROJECT_NAME: uniplus
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          pytest tests/ \
+            -v \
+            --tb=short \
+            -m "infrastructure or integration" \
+            --junitxml=test-results-prod.xml \
+            --ignore=tests/conftest.py
+        continue-on-error: true
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: infrastructure-test-results-prod
+          path: test-results-prod.xml
+          retention-days: 30
+
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: 'test-results-prod.xml'
+          fail_on_failure: false
+          require_tests: false
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## 🧪 TAAC Infrastructure Tests (Production)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** Production" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${GITHUB_SHA::7}" >> $GITHUB_STEP_SUMMARY
