@@ -1,6 +1,6 @@
 <?php
 // Portal do Aluno - UniPlus
-$basePath = '/aluno';
+$basePath = getenv('APP_BASE_PATH') !== false ? getenv('APP_BASE_PATH') : '/aluno';
 $currentPage = 'dashboard';
 $studentName = 'Maria Silva';
 $studentInitials = 'MS';

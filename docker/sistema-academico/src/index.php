@@ -1,6 +1,6 @@
 <?php
 // Sistema Acadêmico - UniPlus
-$basePath = '/academico';
+$basePath = getenv('APP_BASE_PATH') !== false ? getenv('APP_BASE_PATH') : '/academico';
 $currentPage = 'dashboard';
 $userName = 'Admin Sistema';
 $userInitials = 'AS';

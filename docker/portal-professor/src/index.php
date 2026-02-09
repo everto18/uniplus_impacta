@@ -1,6 +1,6 @@
 <?php
 // Portal do Professor - UniPlus
-$basePath = '/professor';
+$basePath = getenv('APP_BASE_PATH') !== false ? getenv('APP_BASE_PATH') : '/professor';
 $currentPage = 'dashboard';
 $professorName = 'Prof. João Santos';
 $professorInitials = 'JS';

@@ -201,7 +201,7 @@ module "compute" {
   services = {
     portal-aluno = {
       container_image   = "${local.account_id}.dkr.ecr.${local.aws_region}.amazonaws.com/uniplus-portal-aluno:dev"
-      container_port    = 80
+      container_port    = 8080
       cpu               = 256
       memory            = 512
       desired_count     = 1
@@ -214,7 +214,7 @@ module "compute" {
     }
     portal-professor = {
       container_image   = "${local.account_id}.dkr.ecr.${local.aws_region}.amazonaws.com/uniplus-portal-professor:dev"
-      container_port    = 80
+      container_port    = 8080
       cpu               = 256
       memory            = 512
       desired_count     = 1
@@ -227,7 +227,7 @@ module "compute" {
     }
     sistema-academico = {
       container_image   = "${local.account_id}.dkr.ecr.${local.aws_region}.amazonaws.com/uniplus-sistema-academico:dev"
-      container_port    = 80
+      container_port    = 8080
       cpu               = 256
       memory            = 512
       desired_count     = 1

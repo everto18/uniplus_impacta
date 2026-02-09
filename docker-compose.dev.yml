@@ -6,9 +6,10 @@ services:
       context: .
       dockerfile: docker/portal-aluno/Dockerfile
     ports:
-      - "8081:80"
+      - "8081:8080"
     environment:
       - APP_ENV=local
+      - APP_BASE_PATH=
     networks:
       - uniplus
 
@@ -17,9 +18,10 @@ services:
       context: .
       dockerfile: docker/portal-professor/Dockerfile
     ports:
-      - "8082:80"
+      - "8082:8080"
     environment:
       - APP_ENV=local
+      - APP_BASE_PATH=
     networks:
       - uniplus
 
@@ -28,9 +30,10 @@ services:
       context: .
       dockerfile: docker/sistema-academico/Dockerfile
     ports:
-      - "8083:80"
+      - "8083:8080"
     environment:
       - APP_ENV=local
+      - APP_BASE_PATH=
     networks:
       - uniplus
 

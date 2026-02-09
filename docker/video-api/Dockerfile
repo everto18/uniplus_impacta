@@ -25,43 +25,10 @@ WORKDIR /var/www/html
 # Copy application files
 COPY docker/video-api/src/ /var/www/html/public/
 
-# Create nginx config for API
-RUN echo 'server { \n\
-    listen 3000; \n\
-    server_name _; \n\
-    root /var/www/html/public; \n\
-    index index.php; \n\
-    \n\
-    location / { \n\
-        try_files $uri $uri/ /index.php?$query_string; \n\
-    } \n\
-    \n\
-    location ~ \.php$ { \n\
-        fastcgi_pass 127.0.0.1:9000; \n\
-        fastcgi_index index.php; \n\
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; \n\
-        include fastcgi_params; \n\
-    } \n\
-    \n\
-    location = /health { \n\
-        try_files $uri /health.php; \n\
-    } \n\
-}' > /etc/nginx/http.d/default.conf
-
-# Create supervisord config
-RUN echo '[supervisord] \n\
-nodaemon=true \n\
-user=root \n\
-\n\
-[program:php-fpm] \n\
-command=/usr/local/sbin/php-fpm -F \n\
-autostart=true \n\
-autorestart=true \n\
-\n\
-[program:nginx] \n\
-command=/usr/sbin/nginx -g "daemon off;" \n\
-autostart=true \n\
-autorestart=true' > /etc/supervisor/conf.d/supervisord.conf
+# Copy configuration files
+COPY docker/video-api/nginx.conf /etc/nginx/http.d/default.conf
+COPY docker/video-api/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/video-api/php.ini /usr/local/etc/php/conf.d/custom.ini
 
 # Set permissions and create non-root user
 RUN chown -R www-data:www-data /var/www/html \
