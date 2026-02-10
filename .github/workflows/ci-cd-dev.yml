@@ -387,7 +387,7 @@ jobs:
         if: needs.config.outputs.tf_apply == 'true' && steps.deploy.outputs.deployed == 'true'
         run: |
           echo "## 🔄 Forcing ECS Service Update" >> $GITHUB_STEP_SUMMARY
-          CLUSTER_NAME="uniplus-dev"
+          CLUSTER_NAME="uniplus-dev-cluster"
           for service in portal-aluno portal-professor sistema-academico video-api; do
             SERVICE_NAME="uniplus-dev-$service"
             if aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
