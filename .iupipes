@@ -31,10 +31,10 @@ init = true
 plan = true
 
 # Aplicar mudanças (deploy efetivo)
-apply = false
+apply = true
 
 # Destruir infraestrutura
-destroy = true
+destroy = false
 
 [notifications]
 # Notificações Slack
