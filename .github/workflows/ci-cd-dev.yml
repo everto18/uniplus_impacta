@@ -446,8 +446,11 @@ jobs:
   integration-tests-dev:
     name: Integration Tests (TAAC)
     runs-on: ubuntu-latest
-    needs: deploy-dev
-    if: needs.deploy-dev.outputs.deployed == 'true'
+    needs: [config, deploy-dev]
+    if: |
+      always() &&
+      needs.config.outputs.testes_integracao == 'true' &&
+      (needs.deploy-dev.result == 'success' || needs.deploy-dev.result == 'skipped')
     outputs:
       tests_passed: ${{ steps.tests.outputs.passed }}
     steps:

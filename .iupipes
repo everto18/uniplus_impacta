@@ -18,7 +18,7 @@ security_scan = false
 deploy_dev = true
 
 # Testes de integração TAAC
-testes_integracao = false
+testes_integracao = true
 
 # Criação automática de PR para main
 create_pr = false

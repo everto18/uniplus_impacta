@@ -71,6 +71,44 @@ output "service_names" {
   value       = [for key, _ in var.services : aws_ecs_service.services[key].name]
 }
 
+# Autoscaling outputs
+output "autoscaling_targets" {
+  description = "Map of autoscaling target ARNs by service name"
+  value = {
+    for key, _ in var.services : key => aws_appautoscaling_target.services[key].arn
+  }
+}
+
+output "cpu_scaling_policies" {
+  description = "Map of CPU autoscaling policy ARNs by service name"
+  value = {
+    for key, _ in var.services : key => aws_appautoscaling_policy.cpu[key].arn
+  }
+}
+
+output "memory_scaling_policies" {
+  description = "Map of memory autoscaling policy ARNs by service name"
+  value = {
+    for key, _ in var.services : key => aws_appautoscaling_policy.memory[key].arn
+  }
+}
+
+output "requests_scaling_policies" {
+  description = "Map of requests autoscaling policy ARNs by service name"
+  value = {
+    for key, _ in var.services : key => aws_appautoscaling_policy.requests[key].arn
+  }
+}
+
+output "scheduled_scaling_actions" {
+  description = "Map of scheduled scaling action ARNs by service name"
+  value = {
+    for key, _ in var.services : key => {
+      for action in var.scheduled_scaling[key] : action.name => aws_appautoscaling_scheduled_action.services["${key}-${action.name}"].arn
+    }
+  }
+}
+
 output "http_listener_arn" {
   description = "HTTP listener ARN"
   value       = aws_lb_listener.http.arn

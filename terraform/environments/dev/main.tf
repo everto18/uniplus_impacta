@@ -206,7 +206,7 @@ module "compute" {
       memory            = 512
       desired_count     = 1
       min_capacity      = 1
-      max_capacity      = 1 # Single task
+      max_capacity      = 2 # Permite escalonamento por CPU/memória
       health_check_path = "/health"
       path_patterns     = ["/aluno/*", "/aluno"]
       priority          = 100
@@ -221,7 +221,7 @@ module "compute" {
       memory            = 512
       desired_count     = 1
       min_capacity      = 1
-      max_capacity      = 1 # Single task
+      max_capacity      = 2 # Permite escalonamento por CPU/memória
       health_check_path = "/health"
       path_patterns     = ["/professor/*", "/professor"]
       priority          = 200
@@ -236,7 +236,7 @@ module "compute" {
       memory            = 512
       desired_count     = 1
       min_capacity      = 1
-      max_capacity      = 1 # Single task
+      max_capacity      = 2 # Permite escalonamento por CPU/memória
       health_check_path = "/health"
       path_patterns     = ["/academico/*", "/academico"]
       priority          = 300
@@ -251,7 +251,7 @@ module "compute" {
       memory            = 512
       desired_count     = 1
       min_capacity      = 1
-      max_capacity      = 1 # Single task
+      max_capacity      = 2 # Permite escalonamento por CPU/memória
       health_check_path = "/health"
       path_patterns     = ["/api/videos/*", "/api/videos"]
       priority          = 400
@@ -264,9 +264,59 @@ module "compute" {
 
   default_service = "portal-aluno"
 
-  # Scheduled Scaling desabilitado - DEV usa task fixa
-  # Para produção, descomentar e ajustar conforme necessidade
-  # scheduled_scaling = { ... }
+  # Scheduled Scaling - Escalonamento agendado por horário
+  scheduled_scaling = {
+    portal-aluno = [
+      {
+        name         = "morning-boost"
+        schedule     = "cron(0 8 ? * MON-FRI *)"
+        min_capacity = 2
+        max_capacity = 5
+        timezone     = "America/Sao_Paulo"
+      },
+      {
+        name         = "evening-peak"
+        schedule     = "cron(0 19 ? * MON-FRI *)"
+        min_capacity = 3
+        max_capacity = 8
+        timezone     = "America/Sao_Paulo"
+      }
+    ],
+    portal-professor = [
+      {
+        name         = "morning-boost"
+        schedule     = "cron(0 8 ? * MON-FRI *)"
+        min_capacity = 2
+        max_capacity = 5
+        timezone     = "America/Sao_Paulo"
+      }
+    ],
+    sistema-academico = [
+      {
+        name         = "morning-boost"
+        schedule     = "cron(0 8 ? * MON-FRI *)"
+        min_capacity = 2
+        max_capacity = 5
+        timezone     = "America/Sao_Paulo"
+      }
+    ],
+    video-api = [
+      {
+        name         = "morning-boost"
+        schedule     = "cron(0 8 ? * MON-FRI *)"
+        min_capacity = 2
+        max_capacity = 5
+        timezone     = "America/Sao_Paulo"
+      },
+      {
+        name         = "evening-peak"
+        schedule     = "cron(0 19 ? * MON-FRI *)"
+        min_capacity = 3
+        max_capacity = 10
+        timezone     = "America/Sao_Paulo"
+      }
+    ]
+  }
 
   tags = local.common_tags
 }
