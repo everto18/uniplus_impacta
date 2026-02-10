@@ -339,6 +339,28 @@ jobs:
             fi
           done
 
+      - name: Ensure ECR Repositories Exist
+        if: needs.config.outputs.tf_apply == 'true'
+        run: |
+          for service in portal-aluno portal-professor sistema-academico video-api; do
+            aws ecr describe-repositories --repository-names uniplus-$service 2>/dev/null || \
+              aws ecr create-repository --repository-name uniplus-$service --image-scanning-configuration scanOnPush=true
+          done
+
+      - name: Push Images to ECR
+        if: needs.config.outputs.tf_apply == 'true'
+        run: |
+          echo "## 📤 Pushing Images to ECR" >> $GITHUB_STEP_SUMMARY
+          ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          for service in portal-aluno portal-professor sistema-academico video-api; do
+            echo "Tagging and pushing $service..."
+            docker tag uniplus-$service:${{ github.sha }} $ECR_REGISTRY/uniplus-$service:${{ github.sha }}
+            docker tag uniplus-$service:dev $ECR_REGISTRY/uniplus-$service:dev
+            docker push $ECR_REGISTRY/uniplus-$service:${{ github.sha }}
+            docker push $ECR_REGISTRY/uniplus-$service:dev
+            echo "- ✅ $service pushed" >> $GITHUB_STEP_SUMMARY
+          done
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -361,18 +383,17 @@ jobs:
           echo "deployed=true" >> $GITHUB_OUTPUT
         working-directory: terraform/environments/dev
 
-      - name: Push Images to ECR
+      - name: Force ECS Service Update
         if: needs.config.outputs.tf_apply == 'true' && steps.deploy.outputs.deployed == 'true'
         run: |
-          echo "## 📤 Pushing Images to ECR" >> $GITHUB_STEP_SUMMARY
-          ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          echo "## 🔄 Forcing ECS Service Update" >> $GITHUB_STEP_SUMMARY
+          CLUSTER_NAME="uniplus-dev"
           for service in portal-aluno portal-professor sistema-academico video-api; do
-            echo "Tagging and pushing $service..."
-            docker tag uniplus-$service:${{ github.sha }} $ECR_REGISTRY/uniplus-$service:${{ github.sha }}
-            docker tag uniplus-$service:dev $ECR_REGISTRY/uniplus-$service:dev
-            docker push $ECR_REGISTRY/uniplus-$service:${{ github.sha }}
-            docker push $ECR_REGISTRY/uniplus-$service:dev
-            echo "- ✅ $service pushed" >> $GITHUB_STEP_SUMMARY
+            SERVICE_NAME="uniplus-dev-$service"
+            if aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
+              aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment
+              echo "- 🔄 $service redeployed" >> $GITHUB_STEP_SUMMARY
+            fi
           done
 
       - name: Skip Apply (Plan Only)

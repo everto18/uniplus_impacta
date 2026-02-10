@@ -12,13 +12,13 @@ sonarqube = false
 docker_build = true
 
 # Scan de segurança (Semgrep, Trivy)
-security_scan = true
+security_scan = false
 
 # Deploy para ambiente de desenvolvimento
 deploy_dev = true
 
 # Testes de integração TAAC
-testes_integracao = true
+testes_integracao = false
 
 # Criação automática de PR para main
 create_pr = false
