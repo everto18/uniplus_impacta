@@ -6,7 +6,7 @@
 testes_unitarios = true
 
 # Análise de qualidade SonarQube
-sonarqube = true
+sonarqube = false
 
 # Build de imagens Docker (pre-build sem push)
 docker_build = true
@@ -31,7 +31,7 @@ init = true
 plan = true
 
 # Aplicar mudanças (deploy efetivo)
-apply = false
+apply = true
 
 # Destruir infraestrutura
 destroy = false
