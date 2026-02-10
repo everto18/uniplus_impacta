@@ -255,7 +255,11 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
-    needs: docker-prebuild
+    needs: [config, docker-prebuild]
+    if: |
+      always() &&
+      needs.config.outputs.security_scan == 'true' &&
+      (needs.docker-prebuild.result == 'success' || needs.docker-prebuild.result == 'skipped')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -286,7 +290,11 @@ jobs:
     name: Deploy to Development
     runs-on: ubuntu-latest
     needs: [config, docker-prebuild, security-scan]
-    if: needs.config.outputs.deploy_dev == 'true'
+    if: |
+      always() &&
+      needs.config.outputs.deploy_dev == 'true' &&
+      (needs.docker-prebuild.result == 'success' || needs.docker-prebuild.result == 'skipped') &&
+      (needs.security-scan.result == 'success' || needs.security-scan.result == 'skipped')
     environment:
       name: development
     outputs:
